@@ -194,17 +194,15 @@ const Upload = () => {
           const sortedFiles = files.sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0));
 
           // PHASE 1: Check for duplicate via image hash BEFORE any expensive operations
-          console.log(`🔍 Starting duplicate check for ${baseFilename}...`);
+          logger.debug(`Starting duplicate check for ${baseFilename}...`);
           const blobs = sortedFiles.map(f => f.blob);
           let receiptHash: string = '';
           try {
-            console.log(`📊 Generating hash for ${blobs.length} image(s)...`);
             const pageHashes = await generateImageHashes(blobs);
             receiptHash = combineHashes(pageHashes);
-            console.log(`🔑 Generated hash for ${baseFilename}: ${receiptHash}`);
+            logger.debug(`Generated hash for ${baseFilename}: ${receiptHash}`);
 
             // Check if this hash already exists for this user
-            console.log(`🔎 Checking database for existing hash...`);
             const { data: existingHash, error: hashLookupError } = await supabase
               .from('receipt_image_hashes')
               .select('id')
@@ -213,35 +211,29 @@ const Upload = () => {
               .maybeSingle();
 
             if (hashLookupError) {
-              console.error('❌ Hash lookup error:', hashLookupError);
+              logger.error('Hash lookup error:', hashLookupError);
             }
 
             if (existingHash) {
               duplicateCount++;
-              console.log(`🚫 DUPLICATE FOUND! Hash ${receiptHash} already exists`);
+              logger.debug(`Duplicate hash found for ${baseFilename}, skipping`);
               toast.warning(`Duplikat upptäckt: ${baseFilename} (samma bild har redan laddats upp)`);
               return;
             }
 
             // Save hash IMMEDIATELY after confirming it's not a duplicate
             // This ensures the hash is saved even if old duplicate check triggers later
-            console.log(`💾 Saving hash to database: ${receiptHash}`);
             const { error: hashInsertError } = await supabase.from('receipt_image_hashes').insert({
               user_id: userId,
               image_hash: receiptHash
-              // Note: receipt_id will be null initially, updated later if receipt is inserted
             });
 
             if (hashInsertError) {
-              console.error('❌ Failed to save hash:', hashInsertError);
-            } else {
-              console.log(`✅ Hash saved successfully`);
+              logger.error('Failed to save hash:', hashInsertError);
             }
-
-            console.log(`✅ No duplicate found, proceeding with upload`);
           } catch (hashError) {
             // If hash generation fails, continue with normal flow (don't block upload)
-            console.error('❌ Hash generation failed:', hashError);
+            logger.warn('Hash generation failed, continuing without duplicate check:', hashError);
           }
 
           // Upload all pages for this receipt
