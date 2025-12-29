@@ -29,7 +29,11 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, products } = await req.json() as { userId: string; products: ProductToMap[] };
+    const { userId, products, previewOnly } = await req.json() as {
+      userId: string;
+      products: ProductToMap[];
+      previewOnly?: boolean;
+    };
 
     if (!userId) {
       throw new Error("userId is required");
@@ -188,22 +192,38 @@ serve(async (req) => {
       const mappings = parsedResponse.mappings || [];
       console.log(`[auto-map-products] AI suggested ${mappings.length} mappings`);
 
-      // Insert mappings into database
+      // Filter out invalid mappings and already-mapped products
+      const validMappings = mappings.filter((mapping: MappingResult) => {
+        if (!mapping.original_name || !mapping.mapped_name || !mapping.category) {
+          console.warn('Skipping invalid mapping:', mapping);
+          return false;
+        }
+        if (existingOriginalNames.has(mapping.original_name.toLowerCase())) {
+          console.log(`Skipping already mapped product: ${mapping.original_name}`);
+          return false;
+        }
+        return true;
+      });
+
+      // PREVIEW MODE: Return suggestions without saving
+      if (previewOnly) {
+        console.log(`[auto-map-products] Preview mode - returning ${validMappings.length} suggestions`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            previewMode: true,
+            suggestions: validMappings,
+            total: productsToMap.length
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // APPLY MODE: Insert mappings into database
       let insertedCount = 0;
       const errors: string[] = [];
 
-      for (const mapping of mappings) {
-        if (!mapping.original_name || !mapping.mapped_name || !mapping.category) {
-          console.warn('Skipping invalid mapping:', mapping);
-          continue;
-        }
-
-        // Double-check we're not inserting a duplicate
-        if (existingOriginalNames.has(mapping.original_name.toLowerCase())) {
-          console.log(`Skipping already mapped product: ${mapping.original_name}`);
-          continue;
-        }
-
+      for (const mapping of validMappings) {
         const { error: insertError } = await supabase
           .from('product_mappings')
           .insert({
