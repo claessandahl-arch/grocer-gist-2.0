@@ -7,8 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Globe, User, Plus, Sparkles, Loader2 } from "lucide-react";
 import { AssignToGroupDropdown } from "./AssignToGroupDropdown";
 import { CreateGroupDialog } from "./CreateGroupDialog";
+import { AutoMapPreviewDialog } from "./AutoMapPreviewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+type MappingSuggestion = {
+  original_name: string;
+  mapped_name: string;
+  category: string;
+  selected: boolean;
+  isEditing: boolean;
+};
 
 type Product = {
   id: string;
@@ -47,10 +56,13 @@ export function UngroupedProductsList({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [activeFilter, setActiveFilter] = useState<string>('Alla');
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [mappingSuggestions, setMappingSuggestions] = useState<MappingSuggestion[]>([]);
+  const [isApplyingMappings, setIsApplyingMappings] = useState(false);
   const [isAutoMapping, setIsAutoMapping] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const handleAutoMapAll = async () => {
+  const handleAutoMapPreview = async () => {
     if (products.length === 0) return;
 
     setIsAutoMapping(true);
@@ -61,7 +73,7 @@ export function UngroupedProductsList({
         return;
       }
 
-      toast.info(`🤖 Mappar ${products.length} produkter...`, { duration: 2000 });
+      toast.info(`🤖 Analyserar ${products.length} produkter...`, { duration: 2000 });
 
       const { data, error } = await supabase.functions.invoke('auto-map-products', {
         body: {
@@ -69,27 +81,73 @@ export function UngroupedProductsList({
           products: products.map(p => ({
             name: p.original_name,
             category: p.category || null
-          }))
+          })),
+          previewOnly: true
         }
       });
 
       if (error) {
-        console.error('Auto-map error:', error);
-        toast.error(`Mappning misslyckades: ${error.message}`);
+        console.error('Auto-map preview error:', error);
+        toast.error(`Förhandsgranskning misslyckades: ${error.message}`);
         return;
       }
 
-      if (data?.mapped > 0) {
-        toast.success(`🤖 ${data.mapped} av ${data.total} produkter mappades!`);
-        onRefresh();
-      } else if (data?.mapped === 0) {
-        toast.info("Inga nya produkter kunde mappas");
+      if (data?.suggestions && data.suggestions.length > 0) {
+        const suggestions: MappingSuggestion[] = data.suggestions.map((s: { original_name: string; mapped_name: string; category: string }) => ({
+          ...s,
+          selected: true,
+          isEditing: false
+        }));
+        setMappingSuggestions(suggestions);
+        setPreviewDialogOpen(true);
+        toast.success(`🤖 ${suggestions.length} förslag genererade!`);
+      } else {
+        toast.info("Inga produkter kunde mappas automatiskt");
       }
     } catch (err) {
-      console.error('Auto-map error:', err);
-      toast.error("Något gick fel vid mappning");
+      console.error('Auto-map preview error:', err);
+      toast.error("Något gick fel vid analys");
     } finally {
       setIsAutoMapping(false);
+    }
+  };
+
+  const handleApplyMappings = async (selectedMappings: MappingSuggestion[]) => {
+    setIsApplyingMappings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Du måste vara inloggad");
+        return;
+      }
+
+      let insertedCount = 0;
+      for (const mapping of selectedMappings) {
+        const { error } = await supabase
+          .from('product_mappings')
+          .insert({
+            user_id: user.id,
+            original_name: mapping.original_name,
+            mapped_name: mapping.mapped_name,
+            category: mapping.category,
+            auto_mapped: true
+          });
+
+        if (!error) {
+          insertedCount++;
+        } else if (error.code !== '23505') { // Skip duplicates silently
+          console.error('Insert error:', error);
+        }
+      }
+
+      toast.success(`🤖 ${insertedCount} av ${selectedMappings.length} produkter mappades!`);
+      setPreviewDialogOpen(false);
+      onRefresh();
+    } catch (err) {
+      console.error('Apply mappings error:', err);
+      toast.error("Något gick fel vid sparning");
+    } finally {
+      setIsApplyingMappings(false);
     }
   };
 
@@ -227,7 +285,7 @@ export function UngroupedProductsList({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleAutoMapAll}
+                  onClick={handleAutoMapPreview}
                   disabled={isAutoMapping}
                   className="gap-2"
                   title="Använder AI för att hitta rätt grupp för ogrupperade produkter"
@@ -237,7 +295,7 @@ export function UngroupedProductsList({
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  {isAutoMapping ? 'Mappar...' : `AI-mappa till grupper (${products.length})`}
+                  {isAutoMapping ? 'Analyserar...' : `AI-mappa till grupper (${products.length})`}
                 </Button>
               )}
               {selectedProducts.length > 0 && (
@@ -380,6 +438,14 @@ export function UngroupedProductsList({
         onOpenChange={setCreateDialogOpen}
         selectedProducts={products.filter(p => selectedProducts.includes(p.id))}
         onSuccess={handleGroupCreated}
+      />
+
+      <AutoMapPreviewDialog
+        open={previewDialogOpen}
+        onOpenChange={setPreviewDialogOpen}
+        suggestions={mappingSuggestions}
+        onApply={handleApplyMappings}
+        isApplying={isApplyingMappings}
       />
     </>
   );
