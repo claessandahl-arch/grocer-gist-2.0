@@ -1,11 +1,12 @@
 # TODO
 
-## Known Bugs 🐛
+## Fixed Bugs ✅
 
-- [ ] **"Sök liknande grupper" returns 500 error**
-  - Function: `suggest-group-merges` Edge Function
-  - Location: Products → Auto-Gruppering → "Sök liknande grupper" button
-  - Status: Needs investigation
+- [x] **"Sök liknande grupper" timeout fixed** (PR #2)
+  - Reduced batch size from 200 → 75 groups to prevent Gemini API timeout
+  - Groups sorted by product count to prioritize larger groups
+
+## Known Bugs 🐛
 
 - [ ] **54 products still unmapped**
   - These were never mapped in the old system
