@@ -338,53 +338,7 @@ function parseICAReceiptText(text: string): { items: ParsedItem[]; store_name?: 
         console.log(`  📍 Article number at index: ${articleIdx}`);
 
         if (articleIdx === -1) {
-          console.log(`  ⚠️ Article number not found as separate part, trying merged format regex...`);
-
-          // ICA Kvantum PDFs often merge fields: "ProductName ArticleNumUnitPrice,Qty stTotal"
-          // Example: "Gorgonz select 26%2022015800000265,001,00 st49,29"
-          // Pattern: ProductName followed by 13-digit article num, then merged price/qty/total
-          const mergedMatch = line.match(/^(\*?)(.+?)(\d{12,13})(\d+,\d{2})(\d+,\d{2})\s*(?:st|kg|l)(\d+,\d{2})$/);
-
-          if (mergedMatch) {
-            const hasDiscount = mergedMatch[1] === '*';
-            const productName = mergedMatch[2].trim();
-            const articleNumber = mergedMatch[3];
-            const unitPrice = parseFloat(mergedMatch[4].replace(',', '.'));
-            const quantity = parseFloat(mergedMatch[5].replace(',', '.'));
-            const summa = parseFloat(mergedMatch[6].replace(',', '.'));
-
-            console.log(`  ✅ Merged format parsed: ${productName} (article: ${articleNumber})`);
-            console.log(`  💰 Unit: ${unitPrice}, Qty: ${quantity}, Total: ${summa}`);
-
-            // Check next line for discount if item has *
-            let discount = 0;
-            if (hasDiscount && i + 1 < lines.length) {
-              const nextLine = lines[i + 1];
-              const discountMatch = nextLine.match(/-(\d+,\d{2})/);
-              if (discountMatch) {
-                discount = parseFloat(discountMatch[1].replace(',', '.'));
-                console.log(`  🎁 Discount: ${discount} kr`);
-                i++; // Skip discount line
-              }
-            }
-
-            const finalPrice = discount > 0 ? summa - discount : summa;
-
-            items.push({
-              name: productName,
-              article_number: articleNumber,
-              price: parseFloat(finalPrice.toFixed(2)),
-              quantity: parseFloat(quantity.toFixed(3)),
-              category: productName.toLowerCase().includes('pant') ? 'pant' : 'other',
-              discount: discount > 0 ? discount : undefined
-            });
-
-            console.log(`  ✅ Added merged item: ${productName} (${quantity}x ${finalPrice} kr)`);
-            i++;
-            continue;
-          }
-
-          console.log(`  ❌ Merged format regex didn't match, skipping`);
+          console.log(`  ❌ Article number not found as separate part (might be embedded)`);
           i++;
           continue;
         }
