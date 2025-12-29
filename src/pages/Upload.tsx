@@ -237,6 +237,7 @@ const Upload = () => {
           }
 
           // Upload all pages for this receipt
+          const storageStart = performance.now();
           const imageUrls = await Promise.all(
             sortedFiles.map(async (file, pageIndex) => {
               const sanitizedFilename = sanitizeFilename(baseFilename);
@@ -281,6 +282,8 @@ const Upload = () => {
               pdfUrl = publicUrl;
             }
           }
+          const storageEnd = performance.now();
+          console.log(`⏱️ Storage upload: ${((storageEnd - storageStart) / 1000).toFixed(2)}s`);
 
           // Call AI once with all image URLs and optional PDF URL
           console.log(`📤 Calling parse-receipt with:`, {
@@ -289,9 +292,12 @@ const Upload = () => {
             filename: baseFilename
           });
 
+          const parseStart = performance.now();
           const { data: parsedData, error: functionError } = await supabase.functions.invoke('parse-receipt', {
             body: { imageUrls: imageUrls, originalFilename: baseFilename, pdfUrl: pdfUrl }
           });
+          const parseEnd = performance.now();
+          console.log(`⏱️ Parse-receipt: ${((parseEnd - parseStart) / 1000).toFixed(2)}s`);
 
           if (functionError || !parsedData) {
             console.error(`❌ Parse error for ${baseFilename}:`, functionError);
