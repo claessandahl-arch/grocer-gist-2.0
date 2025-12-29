@@ -781,6 +781,7 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
             },
             body: JSON.stringify({
               model: 'gemini-2.5-flash',
+              reasoning_effort: 'none', // Disable thinking for faster responses
               messages: [
                 { role: 'user', content: categorizationPrompt }
               ],
@@ -1230,6 +1231,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
       },
       body: JSON.stringify({
         model: 'gemini-2.5-flash',
+        reasoning_effort: 'none', // Disable thinking for faster responses
         messages: [
           {
             role: 'system',
