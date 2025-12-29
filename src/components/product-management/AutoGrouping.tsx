@@ -71,7 +71,7 @@ export function AutoGrouping() {
 
             userMappings?.forEach(mapping => {
                 if (!mapping.mapped_name) return;
-                
+
                 const existing = groupMap.get(mapping.mapped_name);
                 if (existing) {
                     existing.products.push(mapping.original_name);
@@ -105,7 +105,7 @@ export function AutoGrouping() {
         if (!user || productGroups.length < 2) return;
         setIsGenerating(true);
         setSuggestions([]);
-        
+
         try {
             const { data, error } = await supabase.functions.invoke('suggest-group-merges', {
                 body: {
@@ -154,11 +154,11 @@ export function AutoGrouping() {
             for (const merge of mergesToApply) {
                 // Get all source groups except excluded ones
                 const groupsToMerge = merge.sourceGroups.filter(g => !merge.excludedGroups.has(g));
-                
+
                 // Update all products from source groups to the target name
                 for (const sourceGroup of groupsToMerge) {
                     if (sourceGroup === merge.targetName) continue; // Skip if already target
-                    
+
                     const { error } = await supabase
                         .from('product_mappings')
                         .update({ mapped_name: merge.targetName })
@@ -213,11 +213,11 @@ export function AutoGrouping() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Layers className="h-5 w-5" />
-                        Auto-Gruppering
+                        Slå ihop dubblettgrupper
                     </CardTitle>
                     <CardDescription>
-                        Använd AI för att hitta liknande produktgrupper som kan slås ihop.
-                        T.ex. "Eko Creme Fraiche" och "Creme fraiche" → "Creme Fraiche"
+                        Hitta grupper som bör slås ihop (t.ex. om du har både en "Citron"-grupp och en "Citroner"-grupp).
+                        Detta gäller endast befintliga grupper med produkter.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -245,7 +245,7 @@ export function AutoGrouping() {
                             ) : (
                                 <Sparkles className="h-4 w-4 mr-2" />
                             )}
-                            {isGenerating ? "Analyserar..." : "Sök liknande grupper"}
+                            {isGenerating ? "Analyserar..." : "Hitta dubblettgrupper"}
                         </Button>
                     </div>
                 </CardContent>
@@ -264,29 +264,28 @@ export function AutoGrouping() {
 
                     <div className="grid gap-4">
                         {suggestions.map((suggestion, index) => (
-                            <Card 
-                                key={index} 
-                                className={`border-l-4 ${
-                                    suggestion.status === 'accepted' 
-                                        ? 'border-l-green-500' 
-                                        : suggestion.status === 'skipped' 
-                                            ? 'border-l-gray-300' 
+                            <Card
+                                key={index}
+                                className={`border-l-4 ${suggestion.status === 'accepted'
+                                        ? 'border-l-green-500'
+                                        : suggestion.status === 'skipped'
+                                            ? 'border-l-gray-300'
                                             : 'border-l-blue-500'
-                                }`}
+                                    }`}
                             >
                                 <CardContent className="pt-6">
                                     <div className="flex justify-between items-start gap-4">
                                         <div className="space-y-3 flex-1">
                                             <div className="flex items-center gap-3 flex-wrap">
                                                 <Badge variant={
-                                                    suggestion.confidence > 80 ? "default" : 
-                                                    suggestion.confidence > 50 ? "secondary" : 
-                                                    "destructive"
+                                                    suggestion.confidence > 80 ? "default" :
+                                                        suggestion.confidence > 50 ? "secondary" :
+                                                            "destructive"
                                                 }>
                                                     {suggestion.confidence}% säkerhet
                                                 </Badge>
                                             </div>
-                                            
+
                                             <p className="text-sm text-muted-foreground italic">
                                                 {suggestion.reasoning}
                                             </p>
@@ -295,7 +294,7 @@ export function AutoGrouping() {
                                                 <p className="text-xs font-medium uppercase text-muted-foreground">
                                                     Grupper att slå ihop:
                                                 </p>
-                                                
+
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     {suggestion.sourceGroups.map((groupName, gIndex) => (
                                                         <div key={groupName} className="flex items-center gap-2">
@@ -324,9 +323,9 @@ export function AutoGrouping() {
                                                         <span className="text-sm font-medium">Ny gruppnamn:</span>
                                                         <Input
                                                             value={suggestion.targetName}
-                                                            onChange={(e) => setSuggestions(prev => 
-                                                                prev.map((s, i) => i === index 
-                                                                    ? { ...s, targetName: e.target.value } 
+                                                            onChange={(e) => setSuggestions(prev =>
+                                                                prev.map((s, i) => i === index
+                                                                    ? { ...s, targetName: e.target.value }
                                                                     : s
                                                                 )
                                                             )}
@@ -341,9 +340,9 @@ export function AutoGrouping() {
                                             <Button
                                                 size="sm"
                                                 variant={suggestion.status === 'accepted' ? "default" : "outline"}
-                                                onClick={() => setSuggestions(prev => 
-                                                    prev.map((s, i) => i === index 
-                                                        ? { ...s, status: 'accepted' } 
+                                                onClick={() => setSuggestions(prev =>
+                                                    prev.map((s, i) => i === index
+                                                        ? { ...s, status: 'accepted' }
                                                         : s
                                                     )
                                                 )}
@@ -353,9 +352,9 @@ export function AutoGrouping() {
                                             <Button
                                                 size="sm"
                                                 variant={suggestion.status === 'skipped' ? "secondary" : "ghost"}
-                                                onClick={() => setSuggestions(prev => 
-                                                    prev.map((s, i) => i === index 
-                                                        ? { ...s, status: 'skipped' } 
+                                                onClick={() => setSuggestions(prev =>
+                                                    prev.map((s, i) => i === index
+                                                        ? { ...s, status: 'skipped' }
                                                         : s
                                                     )
                                                 )}
