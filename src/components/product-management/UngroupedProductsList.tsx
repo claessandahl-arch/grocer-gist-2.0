@@ -230,13 +230,14 @@ export function UngroupedProductsList({
                   onClick={handleAutoMapAll}
                   disabled={isAutoMapping}
                   className="gap-2"
+                  title="Använder AI för att hitta rätt grupp för ogrupperade produkter"
                 >
                   {isAutoMapping ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  {isAutoMapping ? 'Mappar...' : 'Mappa alla automatiskt'}
+                  {isAutoMapping ? 'Mappar...' : `AI-mappa till grupper (${products.length})`}
                 </Button>
               )}
               {selectedProducts.length > 0 && (
