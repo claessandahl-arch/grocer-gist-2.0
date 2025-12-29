@@ -30,64 +30,46 @@ Always use Context7 when I need code generation, setup or configuration steps, o
 ## Hosting & Infrastructure
 
 This project uses:
-- **Frontend Hosting**: Lovable Cloud
-- **Database**: Lovable Cloud (Supabase-based)
-- **Edge Functions**: Supabase Edge Functions (deployed via Lovable)
+- **Frontend Hosting**: Vercel (`grocer-gist-2-0.vercel.app`)
+- **Database**: Self-hosted Supabase (project: `issddemuomsuqkkrzqzn`)
+- **Edge Functions**: Supabase Edge Functions (deployed via Supabase CLI)
 - **AI**: Direct Google Gemini API (`gemini-2.5-flash`)
 
-> **Note**: AI Gateway migration complete (Dec 2024). Edge Functions now use `GEMINI_API_KEY` directly instead of `LOVABLE_API_KEY`.
+> **Note**: Full migration from Lovable Cloud completed Dec 2024. See HANDOFF.md for migration details.
 
-### Working with Lovable on Edge Functions
+### Vercel Configuration
 
-**CRITICAL LEARNINGS:**
+- **Domain**: `grocer-gist-2-0.vercel.app`
+- **Auto-deploy**: Enabled from `main` branch
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
 
-1. **Edge Function Deployment**: When you merge PRs that change Edge Functions, Lovable does NOT automatically redeploy them. You must explicitly ask Lovable to deploy.
+### Supabase Configuration
 
-2. **How to Request Deployment**:
-   ```
-   Deploy the [function-name] Edge Function from PR #[number]
+- **Project URL**: `https://issddemuomsuqkkrzqzn.supabase.co`
+- **Migrations**: 40+ migrations applied
+- **Edge Functions**: 6 deployed functions
 
-   [Brief explanation of what changed and why]
+### Edge Function Deployment
 
-   Please deploy the Edge Function to Lovable Cloud.
-   ```
+Edge Functions are deployed using the Supabase CLI:
 
-3. **Lovable May Misunderstand Technical Issues** ⚠️ CRITICAL:
-   - If Lovable suggests removing dependencies or code, verify the suggestion is correct
-   - **REPEATED ISSUE**: Lovable has incorrectly removed `pdf-parse` from parse-receipt **TWICE**
-   - **Lovable's claim**: "pdf-parse not compatible with Deno" or "Deno package resolution error"
-   - **REALITY**: npm packages ARE fully compatible with Deno using `npm:` import prefix
-   - **PROOF**: https://deno.land/manual/node/npm_specifiers
-   - **NEVER remove pdf-parse** - see `.lovable-guard` file in parse-receipt function
-   - Always verify technical claims before accepting removals
-   - Check `.lovable-guard` files before modifying protected code
+```bash
+# Deploy a specific function
+supabase functions deploy <function-name>
 
-4. **Preventing Incorrect Removals**:
-   - When requesting deployment, be explicit about NOT removing things
-   - Example: "Deploy the parse-receipt Edge Function. **DO NOT remove pdf-parse** - it's compatible with Deno via npm: imports"
-   - Include evidence if Lovable questions compatibility
-   - Reference CLAUDE.md and .lovable-guard files in your request
-   - If Lovable insists on removing something, **ask the user first**
+# Deploy all functions
+supabase functions deploy
+```
 
-5. **Edge Function Updates Don't Appear Immediately**:
-   - Frontend changes deploy automatically
-   - Edge Function changes require manual deployment request
-   - May take a few minutes after deployment to see changes
-   - **Testing is critical**: Always test with real data after deployment
-   - If the fix doesn't work, create a new PR with the correction
-
-6. **Iterative Edge Function Development**:
-   - **Test with actual receipts**: Console output from real uploads reveals the true format
-   - **Don't assume the format**: What you think the receipt looks like may differ from reality
-   - **Example from this project**:
-     - Initially thought: 3-line pattern (product, brand on separate line, discount on third line)
-     - Reality: 2-line pattern (product, brand + discount on same line)
-   - **Process**: Merge PR → Deploy → Test → If wrong, create new PR with actual format
-   - **Deployment request should reference the PR number** for Lovable's tracking
+**Environment Variables** (set in Supabase Dashboard → Edge Functions):
+- `GEMINI_API_KEY` - For AI parsing
+- `SUPABASE_URL` - Auto-injected
+- `SUPABASE_SERVICE_ROLE_KEY` - For admin operations
 
 ## Git Workflow
 
-**IMPORTANT**: This repository is used alongside Lovable.ai. Always follow these rules:
+**IMPORTANT**: Follow these rules for all changes:
 
 1. **Never commit directly to `main`** - Always create a separate branch for changes
 2. **Create pull requests** - All changes must go through PR workflow
@@ -95,8 +77,8 @@ This project uses:
 4. **Never force push** - Avoid `git push --force` or `git push -f` at all times
 5. **Pull latest changes** - Always run `git pull` before starting work
 6. **Sync frequently** - Keep your local repository in sync with remote
-7. **Verify Build** - ALWAYS run `npm run build` locally before pushing. This catches syntax errors that break Lovable preview.
-8. **Database Access** - You CANNOT access the database directly. It is managed by Lovable Cloud. Use migrations for schema changes.
+7. **Verify Build** - ALWAYS run `npm run build` locally before pushing. Vercel will fail to deploy if there are build errors.
+8. **Database Access** - Use Supabase Dashboard or CLI for database operations. Use migrations for schema changes.
 
 Example workflow:
 ```bash
@@ -534,14 +516,22 @@ Location: `supabase/functions/`
 
 Location: `supabase/migrations/`
 
-This project uses Supabase migrations to manage database schema changes. 24 migration files totaling 1,229 lines of SQL.
+This project uses Supabase migrations to manage database schema changes. 40+ migration files.
 
-Migrations are automatically applied when:
-- Deploying through Lovable.ai
-- Using Supabase CLI with `supabase db push` or `supabase db reset`
+**Applying Migrations:**
+```bash
+# Push migrations to remote database
+supabase db push
 
-> [!IMPORTANT]
-> **Lovable Cloud Database**: The database is hosted on Lovable Cloud and is fully managed by Lovable. You CANNOT access it via an external Supabase dashboard or CLI using standard credentials. All schema changes must be applied by creating migration files and asking Lovable to execute them.
+# Reset database (caution: deletes data)
+supabase db reset
+
+# Create a new migration
+supabase migration new <migration-name>
+```
+
+> [!NOTE]
+> The database is self-hosted on Supabase. Access via Supabase Dashboard or CLI with the project credentials.
 
 ### Key Recent Migrations
 
@@ -683,9 +673,9 @@ When testing the upload functionality:
    - Check: User mappings and global mappings
    - Use: DataManagement page to correct categories
 
-6. **Lovable Preview Error / Build Failed**
-   - **Symptom**: Lovable shows "Preview has not been built yet" or build error logs.
-   - **Cause**: Syntax errors or type errors in the code (e.g., duplicated braces `}}`) that break the build.
+6. **Vercel Build Failed**
+   - **Symptom**: Vercel deployment fails with build errors.
+   - **Cause**: Syntax errors or type errors in the code that break the build.
    - **Solution**: Run `npm run build` locally. If it fails, fix the errors before pushing.
    - **Prevention**: Never push code that hasn't passed a local build check.
 
@@ -719,9 +709,12 @@ All major patterns verified against Context7 documentation:
 - Console.log statements in ProductManagement.tsx (debug logs)
 - `any` type casts on database view queries (acceptable workaround)
 
-## Future: Complete Independence
+## Migration History (Dec 2024)
 
-See `TODO.md` for migration plan. Current status:
-- [x] **Phase 2**: Replace AI Gateway (direct Gemini API) ✅ COMPLETE
-- [ ] **Phase 1**: Own Supabase instance (database, edge functions, storage)
-- [ ] **Phase 3**: (Optional) Migrate to Vercel
+All migration phases complete:
+- [x] **Phase 1**: Own Supabase instance ✅ Complete
+- [x] **Phase 2**: Replace AI Gateway (direct Gemini API) ✅ Complete
+- [x] **Phase 3**: Remove lovable-tagger ✅ Complete
+- [x] **Phase 4**: GitHub repo + Vercel hosting ✅ Complete
+
+See `HANDOFF.md` for full migration details.

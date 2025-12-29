@@ -19,9 +19,13 @@ serve(async (req) => {
     }
 
     try {
+        console.log('[suggest-group-merges] Starting request...');
+
         const { userId, groups } = await req.json() as { userId: string; groups: ProductGroup[] };
+        console.log(`[suggest-group-merges] Received request - userId: ${userId}, groups count: ${groups?.length || 0}`);
 
         if (!userId || !groups || !Array.isArray(groups)) {
+            console.log('[suggest-group-merges] Validation failed - missing required fields');
             return new Response(
                 JSON.stringify({ error: 'Missing required fields: userId, groups (array)' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -29,6 +33,7 @@ serve(async (req) => {
         }
 
         if (groups.length < 2) {
+            console.log('[suggest-group-merges] Not enough groups (need >= 2)');
             return new Response(
                 JSON.stringify({ suggestions: [], message: 'Need at least 2 groups to find merge candidates' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -37,11 +42,14 @@ serve(async (req) => {
 
         const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
         if (!GEMINI_API_KEY) {
+            console.error('[suggest-group-merges] GEMINI_API_KEY not configured!');
             throw new Error('GEMINI_API_KEY is not configured');
         }
+        console.log('[suggest-group-merges] GEMINI_API_KEY is configured');
 
         // Limit to 200 groups to avoid token limits
         const limitedGroups = groups.slice(0, 200);
+        console.log(`[suggest-group-merges] Processing ${limitedGroups.length} groups (limited from ${groups.length})`);
 
         const promptText = `You are a product group consolidation assistant for a Swedish grocery app. Your task is to find product GROUPS that should be merged because they represent the same underlying product.
 
@@ -113,6 +121,7 @@ IMPORTANT:
         const timeoutId = setTimeout(() => controller.abort(), 55000);
 
         try {
+            console.log('[suggest-group-merges] Calling Gemini API...');
             const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -138,10 +147,11 @@ IMPORTANT:
             });
 
             clearTimeout(timeoutId);
+            console.log(`[suggest-group-merges] Gemini API responded with status: ${response.status}`);
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('AI gateway error:', response.status, errorText);
+                console.error('[suggest-group-merges] AI gateway error:', response.status, errorText);
 
                 if (response.status === 429) {
                     throw new Error('Rate limit exceeded. Please try again in a moment.');
@@ -154,6 +164,7 @@ IMPORTANT:
             }
 
             const data = await response.json();
+            console.log('[suggest-group-merges] Successfully parsed response JSON');
             const content = data.choices[0].message.content;
 
             let parsedContent;
