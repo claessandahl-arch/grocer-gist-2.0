@@ -346,17 +346,20 @@ const Upload = () => {
 
           // Save image hash for future duplicate detection
           if (receiptHash) {
-            await supabase.from('receipt_image_hashes').insert({
+            console.log(`🔑 Saving hash for receipt: ${receiptHash}`);
+            const { error: hashError } = await supabase.from('receipt_image_hashes').insert({
               user_id: userId,
               image_hash: receiptHash,
               receipt_id: insertedReceipt?.id
-            }).then(({ error }) => {
-              if (error) {
-                logger.warn('Failed to save image hash (non-blocking):', error);
-              } else {
-                logger.debug(`Saved hash for receipt ${insertedReceipt?.id}`);
-              }
             });
+
+            if (hashError) {
+              console.error('❌ Failed to save image hash:', hashError);
+            } else {
+              console.log(`✅ Hash saved for receipt ${insertedReceipt?.id}`);
+            }
+          } else {
+            console.warn('⚠️ No hash generated, skipping hash save');
           }
 
           // Auto-map products in the background (fire-and-forget)
