@@ -313,6 +313,13 @@ const Upload = () => {
           if (parsedData._debug) {
             console.log(`🔍 Parser method used: ${parsedData._debug.method || 'unknown'}`);
             console.log(`🔍 Debug info:`, parsedData._debug);
+            // Show each debug log entry for thorough troubleshooting
+            if (parsedData._debug.debugLog) {
+              console.log(`📜 Debug Log Steps:`);
+              parsedData._debug.debugLog.forEach((entry: string, idx: number) => {
+                console.log(`  ${idx + 1}. ${entry}`);
+              });
+            }
           } else {
             console.log(`⚠️ No debug info - likely using AI parser`);
           }
