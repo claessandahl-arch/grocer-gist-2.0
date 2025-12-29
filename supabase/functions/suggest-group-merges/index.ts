@@ -47,8 +47,10 @@ serve(async (req) => {
         }
         console.log('[suggest-group-merges] GEMINI_API_KEY is configured');
 
-        // Limit to 200 groups to avoid token limits
-        const limitedGroups = groups.slice(0, 200);
+        // Limit to 75 groups to avoid API timeout (200 was too many)
+        // Sort by product count to prioritize groups with more products
+        const sortedGroups = [...groups].sort((a, b) => b.productCount - a.productCount);
+        const limitedGroups = sortedGroups.slice(0, 75);
         console.log(`[suggest-group-merges] Processing ${limitedGroups.length} groups (limited from ${groups.length})`);
 
         const promptText = `You are a product group consolidation assistant for a Swedish grocery app. Your task is to find product GROUPS that should be merged because they represent the same underlying product.
