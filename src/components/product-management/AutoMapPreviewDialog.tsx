@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,9 +53,9 @@ export function AutoMapPreviewDialog({
     const [suggestions, setSuggestions] = useState<MappingSuggestion[]>(initialSuggestions);
 
     // Update local state when props change
-    useState(() => {
+    useEffect(() => {
         setSuggestions(initialSuggestions);
-    });
+    }, [initialSuggestions]);
 
     const toggleSelection = (index: number) => {
         setSuggestions(prev => prev.map((s, i) =>
