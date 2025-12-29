@@ -7,6 +7,7 @@ import { Upload as UploadIcon, ArrowLeft, FileText, CheckCircle2, Loader2, X } f
 import { toast } from "sonner";
 import * as pdfjsLib from 'pdfjs-dist';
 import { logger } from "@/lib/logger";
+import { generateImageHashes, combineHashes } from "@/lib/imageHash";
 
 interface PreviewFile {
   name: string;
@@ -192,6 +193,34 @@ const Upload = () => {
           // Sort files by page number to maintain correct order
           const sortedFiles = files.sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0));
 
+          // PHASE 1: Check for duplicate via image hash BEFORE any expensive operations
+          const blobs = sortedFiles.map(f => f.blob);
+          let receiptHash: string;
+          try {
+            const pageHashes = await generateImageHashes(blobs);
+            receiptHash = combineHashes(pageHashes);
+            logger.debug(`Generated hash for ${baseFilename}: ${receiptHash}`);
+
+            // Check if this hash already exists for this user
+            const { data: existingHash } = await supabase
+              .from('receipt_image_hashes')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('image_hash', receiptHash)
+              .maybeSingle();
+
+            if (existingHash) {
+              duplicateCount++;
+              toast.warning(`Duplikat upptäckt: ${baseFilename} (samma bild har redan laddats upp)`);
+              logger.debug(`Duplicate hash found for ${baseFilename}, skipping`);
+              return;
+            }
+          } catch (hashError) {
+            // If hash generation fails, continue with normal flow (don't block upload)
+            logger.warn('Hash generation failed, continuing without duplicate check:', hashError);
+            receiptHash = '';
+          }
+
           // Upload all pages for this receipt
           const imageUrls = await Promise.all(
             sortedFiles.map(async (file, pageIndex) => {
@@ -299,7 +328,7 @@ const Upload = () => {
           }
 
           // Insert one receipt with multiple image URLs
-          const { error: insertError } = await supabase.from('receipts').insert({
+          const { data: insertedReceipt, error: insertError } = await supabase.from('receipts').insert({
             user_id: userId,
             image_url: imageUrls[0],
             image_urls: imageUrls,
@@ -307,12 +336,27 @@ const Upload = () => {
             total_amount: parsedData.total_amount,
             receipt_date: parsedData.receipt_date,
             items: parsedData.items
-          });
+          }).select('id').single();
 
           if (insertError) {
             errorCount++;
             toast.error(`Misslyckades spara: ${baseFilename}`);
             return;
+          }
+
+          // Save image hash for future duplicate detection
+          if (receiptHash) {
+            await supabase.from('receipt_image_hashes').insert({
+              user_id: userId,
+              image_hash: receiptHash,
+              receipt_id: insertedReceipt?.id
+            }).then(({ error }) => {
+              if (error) {
+                logger.warn('Failed to save image hash (non-blocking):', error);
+              } else {
+                logger.debug(`Saved hash for receipt ${insertedReceipt?.id}`);
+              }
+            });
           }
 
           // Auto-map products in the background (fire-and-forget)
