@@ -4,96 +4,73 @@
 
 - [ ] **"Sök liknande grupper" returns 500 error**
   - Function: `suggest-group-merges` Edge Function
-  - Error: `FunctionsHttpError: Edge Function returned a non-2xx status code`
   - Location: Products → Auto-Gruppering → "Sök liknande grupper" button
+  - Status: Needs investigation
 
-## Future Improvements 🚀
+- [ ] **54 products still unmapped**
+  - These were never mapped in the old system
+  - Can run auto-map to fix
 
-- [ ] **Phase 4: Create new GitHub repo "Grocer-gist-2.0" + Vercel hosting**
-  - **REQUIRED** - Clean separation from old Lovable project
-  - Old repo (`grocer-gist`) stays frozen as reference/backup
-  - New repo (`grocer-gist-2.0`) for all future development
-  - Steps:
-    1. Create new GitHub repo `grocer-gist-2.0`
-    2. Push clean code (without Lovable history if desired)
-    3. Set up Vercel project connected to new repo
-    4. Configure environment variables on Vercel
-    5. Archive old `grocer-gist` repo (read-only)
-  - Benefits: Clean break, old Lovable still works for reference
-
-## Context7 Code Review Findings (2024-12-26)
-
-### Completed ✅
-
-- [x] Supabase client setup - compliant with Context7 best practices
-- [x] TanStack Query v5 hooks and cache management - correct patterns
-- [x] React Router v6 declarative routing - properly implemented
-- [x] React.lazy() + Suspense code splitting - working correctly
-- [x] Pagination for Supabase 1000 row limit - implemented in ProductManagement
-
-### Minor Improvements (Optional)
-
-- [ ] Remove console.log statements for production builds
-  - Files: `src/pages/ProductManagement.tsx` (multiple debug logs)
-  
-- [ ] Consider adding TypeScript types for database views
-  - Current workaround: `eslint-disable @typescript-eslint/no-explicit-any` on view queries
-  - Files: `src/pages/Dashboard.tsx` (lines 34, 54)
-
-### No Action Required
-
-The following patterns were verified and are correct:
-- Supabase client auth config (persistSession, autoRefreshToken)
-- TanStack Query queryKey arrays and queryFn patterns
-- React Router catch-all route placement
-- date-fns with Swedish locale
-- useMemo for computed values
-- useNavigate for programmatic navigation
+- [ ] **Receipt images on old storage**
+  - Images still point to old Lovable Storage URLs
+  - Will work until that bucket is deleted
+  - Consider migrating images to new storage bucket
 
 ---
 
-## 🚀 Future: Lovable Migration Plan
+## Future Improvements 🚀
 
-> **Status**: NOT STARTED - Needs detailed planning
-> **Priority**: When ready to self-host
+### Minor Cleanup
 
-### Overview
+- [ ] Remove console.log statements from `ProductManagement.tsx`
+- [ ] Add TypeScript types for database views (currently using `any`)
 
-Plan to migrate off Lovable dependencies to gain full control of infrastructure.
+### Optional Enhancements
 
-### Phase 2: Replace AI Gateway ✅ COMPLETE (Dec 2024)
-- [x] Replace `LOVABLE_API_KEY` with direct Gemini API key (`GEMINI_API_KEY`)
-- [x] Update all 5 Edge Functions to use Gemini API directly
-- [x] Test all AI features (parse-receipt, suggest-categories, etc.)
+- [ ] Add Dev Toolbar for quick route navigation (dev mode only)
+- [ ] Custom domain via Vercel Domains
+- [ ] Migrate receipt images to new Supabase storage bucket
 
-### Phase 3: Frontend Cleanup ✅ COMPLETE (Dec 2024)
-- [x] Remove `lovable-tagger` package
-- [x] Update OpenGraph images
-- [x] Update documentation (README.md, CLAUDE.md)
+---
 
-### Phase 1: Own Supabase Instance ✅ COMPLETE (Dec 27, 2024)
-- [x] Create own Supabase account/project (Free tier)
-- [x] Run all migrations on new Supabase instance (40 migrations)
-- [x] Deploy Edge Functions via Supabase CLI (6 functions)
-- [x] Set `GEMINI_API_KEY` secret on new Supabase
-- [x] Storage bucket auto-created with policies
-- [x] Update local environment variables
-- [ ] Export/migrate data from Lovable Cloud (pending)
+## Migration Status ✅
 
-### Phase 4: (Optional) Migrate to Vercel
-- [ ] Set up Vercel project
-- [ ] Configure build settings for Vite
-- [ ] Set up environment variables
-- [ ] Configure custom domain (if needed)
+> **All phases complete as of December 29, 2024**
 
-### Current Status
-| Component | Current State | Target |
-|-----------|--------------|--------|
-| AI Gateway | ✅ Direct Gemini API | Done |
-| Frontend Code | ✅ Cleaned | Done |
-| Database | ✅ Own Supabase (`issddemuomsuqkkrzqzn`) | Done |
-| Edge Functions | ✅ Supabase CLI deployed | Done |
-| Data Migration | ⏳ Pending | Export from Lovable |
-| Frontend Hosting | Lovable publish | Vercel (optional) |
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Own Supabase instance | ✅ Complete |
+| Phase 2 | Replace AI Gateway → Direct Gemini API | ✅ Complete |
+| Phase 3 | Remove `lovable-tagger` | ✅ Complete |
+| Phase 4 | New GitHub repo + Vercel hosting | ✅ Complete |
 
-**📋 Detailed plan**: See `.gemini/antigravity/brain/*/implementation_plan.md` for step-by-step instructions.
+### Infrastructure Summary
+
+| Component | Service |
+|-----------|---------|
+| Frontend | Vercel (`grocer-gist-2-0.vercel.app`) |
+| Database | Supabase (`issddemuomsuqkkrzqzn`) |
+| Edge Functions | Supabase (6 deployed) |
+| AI | Google Gemini API (`gemini-2.5-flash`) |
+
+### Data Migrated
+
+- 117 receipts
+- 1,057 product mappings
+- 221 global mappings
+- 5 store patterns
+- 3 user overrides
+
+**📋 Detailed migration walkthrough**: See `docs/MIGRATION_WALKTHROUGH.md`
+
+---
+
+## Code Review Findings (2024-12-26)
+
+### Verified Compliant ✅
+
+- [x] Supabase client setup - Context7 best practices
+- [x] TanStack Query v5 hooks and cache management
+- [x] React Router v6 declarative routing
+- [x] React.lazy() + Suspense code splitting
+- [x] Pagination for Supabase 1000 row limit
