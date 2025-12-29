@@ -26,9 +26,26 @@
 - [ ] Remove console.log statements from `ProductManagement.tsx`
 - [ ] Add TypeScript types for database views (currently using `any`)
 
+### Structured Parsing Investigation
+
+- [ ] **Fix ICA Kvantum structured parser** - PDF text extraction merges fields without spaces, causing regex patterns to fail. Currently falling back to AI parser.
+- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes on 429 errors.
+- [ ] **Add retry logic for rate limits** - Exponential backoff for Gemini 429 errors.
+
+**📋 Detailed investigation report**: See [`Docs/STRUCTURED_PARSING_INVESTIGATION.md`](Docs/STRUCTURED_PARSING_INVESTIGATION.md)
+
 ### Optional Enhancements
 
-- [ ] Add Dev Toolbar for quick route navigation (dev mode only)
+- [ ] **Dev Toolbar for hidden route navigation** ⭐
+  - Lovable workspace had a floating panel showing all routes for quick testing
+  - Shows routes like `/diagnostics`, `/datamanagement`, `/store-recommendations` etc.
+  - Only visible in development mode
+  - **Investigation needed:** Research best practices using Context7/web search for:
+    - React dev toolbar patterns
+    - Floating panel UI components (Radix, Headless UI)
+    - Keyboard shortcuts for toggling
+  - Reference: See screenshots from Lovable workspace
+  
 - [ ] Custom domain via Vercel Domains
 - [ ] Migrate receipt images to new Supabase storage bucket
 
