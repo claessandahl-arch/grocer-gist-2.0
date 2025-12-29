@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 210 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 15%;
+
+    --primary: 185 75% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 96%;
+    --secondary-foreground: 210 15% 15%;
+
+    --muted: 210 15% 96%;
+    --muted-foreground: 210 10% 50%;
+
+    --accent: 142 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 90%;
+    --input: 210 20% 90%;
+    --ring: 185 75% 45%;
+
+    --radius: 0.75rem;
+
+    --chart-1: 185 75% 45%;
+    --chart-2: 142 70% 45%;
+    --chart-3: 280 65% 60%;
+    --chart-4: 35 90% 55%;
+    --chart-5: 15 85% 60%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(185 75% 45%), hsl(185 85% 55%));
+    --gradient-hero: linear-gradient(180deg, hsl(210 20% 98%), hsl(185 30% 95%));
+    --shadow-soft: 0 4px 20px -2px hsl(185 75% 45% / 0.15);
+    --shadow-card: 0 2px 8px -1px hsl(210 15% 15% / 0.08);
+  }
+
+  .dark {
+    --background: 210 20% 8%;
+    --foreground: 210 15% 92%;
+
+    --card: 210 18% 12%;
+    --card-foreground: 210 15% 92%;
+
+    --popover: 210 18% 12%;
+    --popover-foreground: 210 15% 92%;
+
+    --primary: 185 75% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 18%;
+    --secondary-foreground: 210 15% 92%;
+
+    --muted: 210 15% 18%;
+    --muted-foreground: 210 10% 60%;
+
+    --accent: 142 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 20%;
+    --input: 210 20% 20%;
+    --ring: 185 75% 50%;
+
+    --chart-1: 185 75% 50%;
+    --chart-2: 142 70% 50%;
+    --chart-3: 280 65% 65%;
+    --chart-4: 35 90% 60%;
+    --chart-5: 15 85% 65%;
+
+    --shadow-soft: 0 4px 20px -2px hsl(185 75% 50% / 0.25);
+    --shadow-card: 0 2px 8px -1px hsl(0 0% 0% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

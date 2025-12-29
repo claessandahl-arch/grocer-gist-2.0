@@ -1,0 +1,22 @@
+project_id = "issddemuomsuqkkrzqzn"
+
+[functions.parse-receipt]
+verify_jwt = false
+
+[functions.auto-map-products]
+verify_jwt = false
+
+[functions.suggest-categories]
+verify_jwt = false
+
+[functions.suggest-product-groups]
+verify_jwt = false
+
+[functions.suggest-group-merges]
+verify_jwt = false
+
+[functions.admin-delete-all]
+verify_jwt = false
+
+[functions.export-data]
+verify_jwt = false
