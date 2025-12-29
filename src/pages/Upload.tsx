@@ -194,30 +194,38 @@ const Upload = () => {
           const sortedFiles = files.sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0));
 
           // PHASE 1: Check for duplicate via image hash BEFORE any expensive operations
+          console.log(`🔍 Starting duplicate check for ${baseFilename}...`);
           const blobs = sortedFiles.map(f => f.blob);
           let receiptHash: string;
           try {
+            console.log(`📊 Generating hash for ${blobs.length} image(s)...`);
             const pageHashes = await generateImageHashes(blobs);
             receiptHash = combineHashes(pageHashes);
-            logger.debug(`Generated hash for ${baseFilename}: ${receiptHash}`);
+            console.log(`🔑 Generated hash for ${baseFilename}: ${receiptHash}`);
 
             // Check if this hash already exists for this user
-            const { data: existingHash } = await supabase
+            console.log(`🔎 Checking database for existing hash...`);
+            const { data: existingHash, error: hashLookupError } = await supabase
               .from('receipt_image_hashes')
               .select('id')
               .eq('user_id', userId)
               .eq('image_hash', receiptHash)
               .maybeSingle();
 
+            if (hashLookupError) {
+              console.error('❌ Hash lookup error:', hashLookupError);
+            }
+
             if (existingHash) {
               duplicateCount++;
+              console.log(`🚫 DUPLICATE FOUND! Hash ${receiptHash} already exists`);
               toast.warning(`Duplikat upptäckt: ${baseFilename} (samma bild har redan laddats upp)`);
-              logger.debug(`Duplicate hash found for ${baseFilename}, skipping`);
               return;
             }
+            console.log(`✅ No duplicate found, proceeding with upload`);
           } catch (hashError) {
             // If hash generation fails, continue with normal flow (don't block upload)
-            logger.warn('Hash generation failed, continuing without duplicate check:', hashError);
+            console.error('❌ Hash generation failed:', hashError);
             receiptHash = '';
           }
 
