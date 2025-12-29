@@ -10,10 +10,106 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.1"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      category_suggestion_feedback: {
+        Row: {
+          accepted: boolean
+          confidence: number | null
+          created_at: string | null
+          final_category: string
+          id: string
+          product_name: string
+          reasoning: string | null
+          suggested_category: string
+          user_id: string
+        }
+        Insert: {
+          accepted: boolean
+          confidence?: number | null
+          created_at?: string | null
+          final_category: string
+          id?: string
+          product_name: string
+          reasoning?: string | null
+          suggested_category: string
+          user_id: string
+        }
+        Update: {
+          accepted?: boolean
+          confidence?: number | null
+          created_at?: string | null
+          final_category?: string
+          id?: string
+          product_name?: string
+          reasoning?: string | null
+          suggested_category?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      global_mapping_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          id: string
+          mapping_id: string
+          new_mapped_name: string
+          old_mapped_name: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          id?: string
+          mapping_id: string
+          new_mapped_name: string
+          old_mapped_name: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          id?: string
+          mapping_id?: string
+          new_mapped_name?: string
+          old_mapped_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_mapping"
+            columns: ["mapping_id"]
+            isOneToOne: false
+            referencedRelation: "global_product_mappings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       global_product_mappings: {
         Row: {
           category: string | null
@@ -144,6 +240,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "receipt_corrections_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receipt_image_hashes: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_hash: string
+          receipt_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_hash: string
+          receipt_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_hash?: string
+          receipt_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_image_hashes_receipt_id_fkey"
             columns: ["receipt_id"]
             isOneToOne: false
             referencedRelation: "receipts"
@@ -512,6 +640,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
