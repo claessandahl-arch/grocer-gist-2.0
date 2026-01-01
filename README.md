@@ -16,7 +16,7 @@ A smart grocery spending tracker that uses AI to parse receipt images and PDFs, 
 - **UI**: shadcn/ui + Tailwind CSS
 - **Backend**: Supabase (Database, Auth, Storage, Edge Functions)
 - **AI**: Google Gemini API (Receipt parsing, categorization)
-- **Hosting**: Lovable Cloud (frontend) / Supabase (backend)
+- **Hosting**: Vercel (frontend) / Supabase (backend)
 
 ## Development
 
@@ -29,10 +29,10 @@ A smart grocery spending tracker that uses AI to parse receipt images and PDFs, 
 
 ```sh
 # Clone the repository
-git clone https://github.com/claessandahl-arch/grocer-gist.git
+git clone https://github.com/claessandahl-arch/grocer-gist-2.0.git
 
 # Navigate to project directory
-cd grocer-gist
+cd grocer-gist-2.0
 
 # Install dependencies
 npm install
@@ -86,7 +86,6 @@ Edge Functions require `GEMINI_API_KEY` to be set as a secret.
 
 - [CLAUDE.md](./CLAUDE.md) - Detailed project documentation and guidelines
 - [TODO.md](./TODO.md) - Roadmap and planned features
-- [TECH_STACK.md](./TECH_STACK.md) - Technology stack details
 
 ## License
 
