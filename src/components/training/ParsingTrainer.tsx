@@ -165,8 +165,16 @@ export function ParsingTrainer() {
     const startTime = Date.now();
 
     try {
+      // Get user session for storage RLS
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error('Du måste vara inloggad för att testa tolkning');
+      }
+      const userId = session.user.id;
+
       // Upload image temporarily to Supabase storage for the edge function
-      const tempFileName = `training-test-${Date.now()}.jpg`;
+      // Use user ID in path to comply with RLS policies
+      const tempFileName = `${userId}/training-test-${Date.now()}.jpg`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('receipts')
         .upload(tempFileName, uploadedFile.blob, {
@@ -185,8 +193,9 @@ export function ParsingTrainer() {
 
       // Also upload the original PDF if available (for PDF text extraction)
       let pdfUrl: string | undefined;
+      let pdfFileName: string | undefined;
       if (pdfFile) {
-        const pdfFileName = `training-test-${Date.now()}.pdf`;
+        pdfFileName = `${userId}/training-test-${Date.now()}.pdf`;
         const { error: pdfUploadError } = await supabase.storage
           .from('receipts')
           .upload(pdfFileName, pdfFile, {
@@ -199,11 +208,6 @@ export function ParsingTrainer() {
             .from('receipts')
             .getPublicUrl(pdfFileName);
           pdfUrl = pdfUrlData.publicUrl;
-
-          // Clean up PDF after parsing
-          setTimeout(async () => {
-            await supabase.storage.from('receipts').remove([pdfFileName]);
-          }, 5000);
         }
       }
 
@@ -217,8 +221,10 @@ export function ParsingTrainer() {
         },
       });
 
-      // Clean up temp image
-      await supabase.storage.from('receipts').remove([tempFileName]);
+      // Clean up temp files
+      const filesToRemove = [tempFileName];
+      if (pdfFileName) filesToRemove.push(pdfFileName);
+      await supabase.storage.from('receipts').remove(filesToRemove);
 
       const endTime = Date.now();
       setParseTime(endTime - startTime);
