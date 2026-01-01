@@ -1,7 +1,8 @@
 # AAA Receipt Parsing Training Feature
 
 **Created:** January 1, 2026  
-**Status:** Planning  
+**Last Updated:** January 1, 2026  
+**Status:** Phase 1-2 Complete, Phase 3 In Progress  
 **Goal:** Build an intuitive training tool to achieve perfect ("AAA") receipt parsing
 
 ---
@@ -12,7 +13,39 @@ This document outlines the plan for building a comprehensive receipt parsing tra
 - Iterative improvement of parsing with bug fixes
 - Visual comparison of receipt image vs parsed results
 - A/B testing between parser versions
+- **NEW:** Side-by-side comparison of AI vs Structured parser results
 - Safe transition from experimental to production parser
+
+---
+
+## What's Been Implemented ✅
+
+### PR #8: Parser Versioning (Merged)
+
+**Edge Function Changes:**
+- Added `parserVersion` parameter to `parse-receipt` edge function
+- Supports: `'current'` | `'experimental'` | `'ai_only'`
+- Added `preprocessICAText()` function for experimental parser
+  - Extended barcode regex from 8-13 → 8-16 digits (ICA Kvantum uses 14-16)
+  - Inserts spaces before article numbers to fix merged fields
+- Added `parseICAKvantumText()` - dedicated parser for table-based ICA Kvantum format
+- Store type detection: Willys vs ICA vs ICA Kvantum
+- Debug output includes `parserVersion` and raw PDF text on failure
+
+**Training UI Changes:**
+- Parser version dropdown selector in "Träning på inläsning" tab
+- Visual badges showing which parser/version was used
+- Color-coded debug log (green=success, red=fail, blue=info, yellow=headers)
+- Debug log open by default with dark theme for readability
+- Full PDF text shown when structured parsing fails (for debugging)
+
+**Files Modified:**
+- `supabase/functions/parse-receipt/index.ts`
+- `src/components/training/ParsingTrainer.tsx`
+
+### Bug Fixes Applied
+- **RLS Storage Error:** Added user ID to storage path for temp files
+- **ICA Kvantum Detection:** Now correctly identifies and routes to dedicated parser
 
 ---
 
@@ -49,125 +82,281 @@ This document outlines the plan for building a comprehensive receipt parsing tra
 | Function | Lines | Purpose |
 |----------|-------|---------|
 | `parseWillysReceiptText` | 50-258 | Structured parser for Willys self-scan |
-| `parseICAReceiptText` | 260-580 | Structured parser for ICA (broken for Kvantum) |
-| Store detection logic | 735-840 | Routes to appropriate parser |
-| Gemini API call | 1226-1294 | AI fallback with detailed prompts |
+| `preprocessICAText` | 268-295 | **NEW:** Pre-processes text to fix merged fields |
+| `parseICAKvantumText` | 297-370 | **NEW:** Table-based parser for ICA Kvantum |
+| `parseICAReceiptText` | 375-620 | Structured parser for standard ICA |
+| Store detection logic | 840-860 | Routes to appropriate parser (now detects ICA Kvantum) |
+| Gemini API call | 1000-1350 | AI fallback with detailed prompts |
 
 ---
 
 ## Known Pain Points
 
-### 1. ICA Kvantum PDF Text Extraction Issue
+### 1. ICA Kvantum PDF Text Extraction Issue ✅ FIXED
 
 PDF text extraction merges fields without spaces:
 
 ```
-Expected: "Gorgonz select 26%    2022015800000265    0,001,00 st    49,29"
-Actual:   "Gorgonz select 26%2022015800000265,001,00 st49,29"
+Original:  "Blåmusslor färska209193290000079,001,00 st316,00"
+After fix: "Blåmusslor färska 209193290000079 ,001,00 st 316,00"
 ```
 
-**Impact:** Regex patterns fail, falls back to slower AI parser (~27s vs <1s)
+**Solution implemented:**
+- `preprocessICAText()` inserts spaces before 8-16 digit article numbers
+- `parseICAKvantumText()` handles the table format specifically
 
-### 2. No Parser Versioning
+### 2. No Parser Versioning ✅ FIXED
 
-- Cannot test parser changes without affecting production
-- Cannot compare old vs new parser on same receipt
-- No rollback capability
+~~Cannot test parser changes without affecting production~~
+
+**Solution implemented:**
+- `parserVersion` parameter: `'current'` | `'experimental'` | `'ai_only'`
+- Production always uses `'current'`, training can use any version
+- Debug output shows which version was used
 
 ### 3. Orphaned Hash Problem
 
 Hash is saved BEFORE receipt creation. If parsing fails (429 error), hash remains orphaned, blocking re-upload.
 
+**Status:** Not yet fixed
+
 ### 4. Slow AI Fallback
 
-Even with `reasoning_effort: 'none'`, AI parsing takes ~27 seconds. Structured parser would be <1 second.
+Even with `reasoning_effort: 'none'`, AI parsing takes ~10-27 seconds. Structured parser is <1 second.
+
+**Mitigation:** ICA Kvantum parser now working, reduces AI fallback frequency.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Parser Versioning (Edge Function)
+### Phase 1: Parser Versioning (Edge Function) ✅ COMPLETE
 
-Add `parserVersion` parameter to edge function for A/B testing:
+Added `parserVersion` parameter to edge function for A/B testing:
 
 ```typescript
-// parse-receipt/index.ts
+// parse-receipt/index.ts - Request body
+const { imageUrl, imageUrls, originalFilename, pdfUrl, parserVersion } = await req.json();
+const selectedVersion = parserVersion || 'current';
 
-const PARSER_VERSIONS = {
-  'v1': {
-    name: 'Legacy Structured',
-    ica: parseICAReceiptTextV1,
-    willys: parseWillysReceiptTextV1,
-  },
-  'current': {
-    name: 'Current Production',
-    ica: parseICAReceiptText,
-    willys: parseWillysReceiptText,
-  },
-  'experimental': {
-    name: 'Experimental (Merged Field Fix)',
-    ica: parseICAReceiptTextExperimental,
-    willys: parseWillysReceiptText,
-  },
-};
-
-const DEFAULT_VERSION = 'current';
-
-// In main handler:
-const requestedVersion = body.parserVersion || DEFAULT_VERSION;
-const parser = PARSER_VERSIONS[requestedVersion];
+// Supported versions:
+// 'current'      - Production parser
+// 'experimental' - With preprocessICAText() + parseICAKvantumText()
+// 'ai_only'      - Skip structured parsing, go directly to Gemini
 ```
 
 **Benefits:**
-- Instant switching between parser versions
-- No infrastructure changes needed
-- Production uses `DEFAULT_VERSION`, training can use any version
+- ✅ Instant switching between parser versions
+- ✅ No infrastructure changes needed
+- ✅ Production uses default, training can use any version
 
 ---
 
-### Phase 2: Enhanced Training UI
+### Phase 2: Enhanced Training UI ✅ COMPLETE
 
-#### New Layout: Side-by-Side View
+#### Current Implementation
+
+Located in: `src/components/training/ParsingTrainer.tsx`  
+Accessed via: Training page → "Träning på inläsning" tab
+
+**Features implemented:**
+1. ✅ Parser version dropdown selector
+2. ✅ PDF/image upload with preview
+3. ✅ Parse button triggers edge function
+4. ✅ Results display with item list
+5. ✅ Color-coded debug log with raw PDF text
+6. ✅ Visual badges for parser method and version
+7. ✅ Timing information
+
+#### UI Layout
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  ┌──────────────────┐  ┌──────────────────────────────────────┐ │
-│  │                  │  │ Parser: [Current ▼] vs [Exp ▼]       │ │
-│  │    RECEIPT       │  ├──────────────────────────────────────┤ │
-│  │    IMAGE         │  │ Store: ICA Kvantum                   │ │
-│  │                  │  │ Date: 2025-12-23                     │ │
-│  │  (scrollable)    │  │ Total: 2,045.00 kr                   │ │
-│  │                  │  ├──────────────────────────────────────┤ │
-│  │                  │  │ Items (32):                          │ │
-│  │                  │  │ ├─ Gorgonzola 26%... 49.29 kr ✓      │ │
-│  │                  │  │ ├─ Kokt Skinka..... 35.90 kr ✓      │ │
-│  │                  │  │ └─ ...                               │ │
-│  └──────────────────┘  └──────────────────────────────────────┘ │
+│  ┌──────────────────────────────┐  ┌──────────────────────────┐ │
+│  │ Ladda upp testkvitto         │  │ Tolkningsresultat        │ │
+│  │                              │  │                          │ │
+│  │ Parser-version: [Dropdown ▼] │  │ Metod: [Strukturerad]    │ │
+│  │ ├─ Current (Produktion)      │  │ Tid: 0.8s                │ │
+│  │ ├─ Experimental              │  │                          │ │
+│  │ ├─ Endast AI                 │  │ Butik: ICA Kvantum       │ │
+│  │ └─ Jämför (AI vs Strukt) NEW │  │ Datum: 2025-12-30        │ │
+│  │                              │  │ Total: 934.62 kr         │ │
+│  │ ┌────────────────────────┐   │  │                          │ │
+│  │ │                        │   │  │ Items (6):               │ │
+│  │ │    KVITTO PREVIEW      │   │  │ ├─ Kammussla    209.72 kr│ │
+│  │ │                        │   │  │ ├─ Kapris Små   26.95 kr │ │
+│  │ └────────────────────────┘   │  │ └─ ...                   │ │
+│  │                              │  │                          │ │
+│  │ [Testa tolkning]             │  │ Debug-logg (expandable)  │ │
+│  └──────────────────────────────┘  └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Features to Add
+---
 
-1. **Parser Version Selector**
-   ```tsx
-   <Select value={parserVersion} onValueChange={setParserVersion}>
-     <SelectItem value="current">Current (Production)</SelectItem>
-     <SelectItem value="v1">v1 (Legacy)</SelectItem>
-     <SelectItem value="experimental">Experimental</SelectItem>
-   </Select>
-   ```
+### Phase 3: Comparison Mode (AI vs Strukturerad) 🔄 IN PROGRESS
 
-2. **Comparison Mode**
-   - Run same receipt through 2 parsers simultaneously
-   - Show results side-by-side with diff highlighting
+**Goal:** Add a "Jämför" option that runs both structured parser AND AI parser in parallel, then displays a diff view showing matches, discrepancies, and missing items.
 
-3. **Persistent Receipt Image**
-   - Keep image visible while viewing results
-   - Scrollable/zoomable for detailed inspection
+#### A. Edge Function Changes
+
+**New parserVersion option:**
+```typescript
+type ParserVersion = 'current' | 'experimental' | 'ai_only' | 'comparison';
+```
+
+**Comparison mode logic:**
+```typescript
+if (selectedVersion === 'comparison') {
+  const startStructured = Date.now();
+  
+  // Run structured parser (experimental version for best results)
+  const preprocessedText = preprocessICAText(rawPdfText);
+  let structuredResult = null;
+  
+  if (isWillys) {
+    structuredResult = parseWillysReceiptText(rawPdfText);
+  } else if (isICAKvantum) {
+    structuredResult = parseICAKvantumText(preprocessedText);
+  } else {
+    structuredResult = parseICAReceiptText(preprocessedText);
+  }
+  
+  const structuredTime = Date.now() - startStructured;
+  
+  // Run AI parser
+  const startAI = Date.now();
+  const aiResult = await callGeminiAPI(imagesToProcess, pdfText, GEMINI_API_KEY);
+  const aiTime = Date.now() - startAI;
+  
+  // Compute diff
+  const diff = computeItemDiff(structuredResult?.items || [], aiResult.items);
+  
+  return new Response(JSON.stringify({
+    mode: 'comparison',
+    structured: structuredResult,
+    ai: aiResult,
+    diff: diff,
+    timing: { structured: structuredTime, ai: aiTime },
+    _debug: { method: 'comparison_mode', debugLog }
+  }));
+}
+```
+
+#### B. Diff Algorithm
+
+**Item matching priority:**
+1. Exact article number match
+2. Exact name match (normalized: lowercase, trimmed)
+3. Fuzzy name match (similarity > 70%)
+4. Price + partial name match
+
+**Diff data structure:**
+```typescript
+interface ItemDiff {
+  structuredItem?: ParsedItem;
+  aiItem?: ParsedItem;
+  matchType: 'exact' | 'name_match' | 'fuzzy' | 'price_match' | 'unmatched';
+  differences: {
+    field: 'name' | 'price' | 'quantity' | 'category' | 'discount';
+    structured: any;
+    ai: any;
+  }[];
+}
+
+interface ComparisonResult {
+  mode: 'comparison';
+  structured: SingleParseResult | null;
+  ai: SingleParseResult;
+  diff: {
+    // Header comparison
+    storeName: { structured: string; ai: string; match: boolean };
+    totalAmount: { structured: number; ai: number; diff: number };
+    receiptDate: { structured: string; ai: string; match: boolean };
+    
+    // Item comparison
+    itemCount: { structured: number; ai: number };
+    items: ItemDiff[];
+    
+    // Summary
+    matchRate: number;              // % of items matched
+    priceAccuracy: number;          // % of prices within 0.10 kr
+    missingInStructured: ParsedItem[];
+    missingInAI: ParsedItem[];
+  };
+  timing: { structured: number; ai: number };
+}
+```
+
+#### C. UI Changes (ParsingTrainer.tsx)
+
+**Add comparison option to dropdown:**
+```tsx
+<SelectItem value="comparison">
+  <div className="flex items-center gap-2">
+    <Badge variant="outline" className="bg-blue-50 text-blue-700">Jämför</Badge>
+    <span>AI vs Strukturerad</span>
+  </div>
+</SelectItem>
+```
+
+**Comparison View Layout:**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  JÄMFÖRELSE: AI vs Strukturerad                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─ SAMMANFATTNING ─────────────────────────────────────────────────────┐  │
+│  │ Strukturerad: 6 items (0.8s) │ AI: 6 items (10.4s) │ Match: 100%     │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─ HEADER ─────────────────────────────────────────────────────────────┐  │
+│  │              │ Strukturerad          │ AI                  │ Status  │  │
+│  │ Butik        │ ICA Kvantum Liljeholm │ ICA Kvantum Lilj.  │ ✅      │  │
+│  │ Total        │ 934.62 kr             │ 934.62 kr          │ ✅      │  │
+│  │ Datum        │ 2025-12-30            │ 2025-12-30         │ ✅      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─ PRODUKTER ──────────────────────────────────────────────────────────┐  │
+│  │                                                                      │  │
+│  │ ✅ MATCHADE (6)                                                      │  │
+│  │ ┌────────────────────────────────────────────────────────────────┐  │  │
+│  │ │ #  │ Strukturerad        │ AI                   │ Status       │  │  │
+│  │ │ 1  │ Kammussla  209.72kr │ Kammussla   209.72kr │ ✅ Exakt     │  │  │
+│  │ │ 2  │ Kapris Små  26.95kr │ Kapris Små   26.95kr │ ✅ Exakt     │  │  │
+│  │ │ 3  │ Ostron 12   249.00kr│ Ostron 12-pack 249kr │ ⚠️ Namn      │  │  │
+│  │ └────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │ ❌ ENDAST I AI (0)                                                   │  │
+│  │ ❌ ENDAST I STRUKTURERAD (0)                                         │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ▶ Debug-logg (klicka för att expandera)                                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### D. Implementation Checklist
+
+**Edge Function:**
+- [ ] Add `'comparison'` to parserVersion type
+- [ ] Extract structured parsing into reusable function
+- [ ] Extract AI parsing into reusable function
+- [ ] Implement `computeItemDiff()` algorithm
+- [ ] Return comparison response format
+
+**Frontend:**
+- [ ] Add `'comparison'` to ParserVersion type
+- [ ] Add comparison option to dropdown
+- [ ] Create `ComparisonResult` TypeScript interface
+- [ ] Create `ComparisonView` component
+- [ ] Style matched/unmatched/discrepancy rows
+- [ ] Show timing comparison
 
 ---
 
-### Phase 3: Test Case Library
+### Phase 4: Test Case Library (Future)
 
 #### Database Table
 
@@ -196,7 +385,7 @@ CREATE TABLE parser_test_cases (
 
 ---
 
-### Phase 4: Accuracy Dashboard
+### Phase 5: Accuracy Dashboard (Future)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -220,27 +409,43 @@ CREATE TABLE parser_test_cases (
 
 ---
 
-### Phase 5: Fix ICA Kvantum Parser
+### ICA Kvantum Parser Fix ✅ COMPLETE (Merged in PR #8)
 
-#### Approach: Pre-processing Text
+#### Problem Solved
+ICA Kvantum receipts had merged fields like:
+```
+Gorgonz select 26%2022015800000265,001,00 st49,29
+```
+Article numbers are 14-16 digits (not 8-13), causing regex failures.
 
-Insert spaces before article numbers (8-13 digit sequences):
+#### Solution: Pre-processing Text + Dedicated Parser
 
+**1. preprocessICAText() - Fix merged fields:**
 ```typescript
 function preprocessICAText(text: string): string {
-  // Insert space before 8-13 digit sequences (article numbers)
-  return text.replace(/(\D)(\d{8,13})/g, '$1 $2');
+  let processed = text;
+  
+  // Insert space before 8-16 digit article numbers
+  processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,16})/g, '$1 $2');
+  
+  // Insert space before price patterns: "st49,29" → "st 49,29"
+  processed = processed.replace(/(st|kg|l|ml|g)(\d+[,.]?\d*)\s*$/gm, '$1 $2');
+  
+  // Insert space after article numbers: "123456789,00" → "123456789 ,00"
+  processed = processed.replace(/(\d{8,16})([,.])/g, '$1 $2');
+  
+  return processed;
 }
-
-// Before: "Gorgonz select 26%2022015800000265,001,00 st49,29"
-// After:  "Gorgonz select 26% 2022015800000265,001,00 st49,29"
 ```
 
-This will be implemented in `parseICAReceiptTextExperimental()`.
+**2. parseICAKvantumText() - Table format parser:**
+- Detects ICA Kvantum by "Kvantum" + "Beskrivning" in text
+- Matches pattern: `ProductName ArticleNumber [UnitPrice] Quantity Unit Summa`
+- Handles 14-16 digit barcodes specific to ICA Kvantum
 
 ---
 
-### Phase 6: Production Transition
+### Phase 6: Production Transition (Future)
 
 #### Graduation Pipeline
 
@@ -285,47 +490,58 @@ This will be implemented in `parseICAReceiptTextExperimental()`.
 
 ## Implementation Order
 
-| Priority | Task | Effort | Impact |
-|----------|------|--------|--------|
-| 1 | Add `parserVersion` parameter to edge function | Low | High |
-| 2 | Add parser selector dropdown to ParsingTrainer | Low | High |
-| 3 | Fix layout: side-by-side receipt image + results | Medium | High |
-| 4 | Add comparison mode (run 2 parsers at once) | Medium | High |
-| 5 | Create test case storage table | Low | Medium |
-| 6 | Build accuracy scoring dashboard | Medium | Medium |
-| 7 | Fix orphan hash problem | Low | Medium |
-| 8 | Add retry logic for 429 errors | Low | Medium |
-| 9 | Fix ICA Kvantum merged field parsing | High | High |
-| 10 | Build manual correction interface | High | Low |
+| Priority | Task | Effort | Impact | Status |
+|----------|------|--------|--------|--------|
+| 1 | Add `parserVersion` parameter to edge function | Low | High | ✅ Done |
+| 2 | Add parser selector dropdown to ParsingTrainer | Low | High | ✅ Done |
+| 3 | Fix RLS storage paths (add userId) | Low | High | ✅ Done |
+| 4 | Fix ICA Kvantum merged field parsing | High | High | ✅ Done |
+| 5 | Add comparison mode (run 2 parsers at once) | Medium | High | 🔄 Next |
+| 6 | Create test case storage table | Low | Medium | Not started |
+| 7 | Build accuracy scoring dashboard | Medium | Medium | Not started |
+| 8 | Fix orphan hash problem | Low | Medium | Not started |
+| 9 | Add retry logic for 429 errors | Low | Medium | Not started |
+| 10 | Build manual correction interface | High | Low | Not started |
 
 ---
 
 ## Open Questions
 
 1. **Start order:** Edge function versioning first (UI depends on it) or UI improvements first?
-   - **Recommendation:** Edge function first
+   - **Decision:** ✅ Edge function first - Done
 
 2. **Test case library scope:** Start with 5-10 receipts or collect more samples first?
    - **Recommendation:** Start with 5-10 covering ICA Kvantum, ICA standard, Willys
 
 3. **Shadow mode:** Log both parser results on real uploads for comparison?
    - **Recommendation:** Yes, useful for measuring real-world accuracy before switching
+   - **Note:** Comparison mode in Training UI provides similar value for manual testing
+
+4. **ICA Kvantum article numbers:** 8-13 digit or longer?
+   - **Decision:** ✅ Extended to 8-16 digits (ICA Kvantum uses 14-16 digit barcodes)
 
 ---
 
 ## Progress Tracking
 
-### Completed
+### ✅ Completed (PR #8 - Merged)
 - [x] Initial ParsingTrainer component (PR #7)
 - [x] Basic upload and parsing functionality
-- [x] Debug log viewer
+- [x] Debug log viewer with dark theme + color-coded output
+- [x] Parser versioning in edge function (`current`, `experimental`, `ai_only`)
+- [x] Parser selector dropdown in Training UI
+- [x] `preprocessICAText()` - Fix merged fields with 8-16 digit regex
+- [x] `parseICAKvantumText()` - Dedicated table-based parser for ICA Kvantum
+- [x] Visual badges showing parser version in results
+- [x] RLS-compliant storage paths (userId prefix)
+- [x] Raw PDF text debug output on parse failure
 
-### In Progress
-- [ ] Parser versioning in edge function
-- [ ] Enhanced UI with side-by-side view
+### 🔄 In Progress
+- [ ] Comparison mode (AI vs Structured side-by-side)
 
 ### Not Started
-- [ ] Test case library
+- [ ] Test case library database
 - [ ] Accuracy dashboard
-- [ ] ICA Kvantum fix
 - [ ] Production transition mechanism
+- [ ] Orphan hash fix
+- [ ] 429 retry logic
