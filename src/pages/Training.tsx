@@ -11,6 +11,7 @@ import { ArrowLeft, Save, Trash2, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ParsingTrainer } from "@/components/training/ParsingTrainer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -747,19 +748,7 @@ export default function Training() {
           </TabsContent>
 
           <TabsContent value="parsing-training">
-            <Card>
-              <CardHeader>
-                <CardTitle>Träning på inläsning</CardTitle>
-                <CardDescription>
-                  Testa och förbättra kvittotolkningen med olika kvittoformat
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Kommande funktion för att testa och träna kvittotolkningen.
-                </p>
-              </CardContent>
-            </Card>
+            <ParsingTrainer />
           </TabsContent>
         </Tabs>
 
