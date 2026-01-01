@@ -514,13 +514,26 @@ export function ParsingTrainer() {
               {parseResult._debug?.debugLog && parseResult._debug.debugLog.length > 0 && (
                 <>
                   <Separator />
-                  <details className="text-xs">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                      Visa debug-logg ({parseResult._debug.debugLog.length} rader)
+                  <details className="text-xs" open>
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                      Debug-logg ({parseResult._debug.debugLog.length} rader)
                     </summary>
-                    <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-x-auto max-h-40 overflow-y-auto">
-                      {parseResult._debug.debugLog.join('\n')}
-                    </pre>
+                    <div className="mt-2 p-3 bg-slate-900 rounded text-slate-100 text-xs overflow-x-auto max-h-96 overflow-y-auto font-mono">
+                      {parseResult._debug.debugLog.map((line, idx) => {
+                        // Color-code different types of log lines
+                        let className = '';
+                        if (line.startsWith('✓')) className = 'text-green-400';
+                        else if (line.startsWith('✗')) className = 'text-red-400';
+                        else if (line.startsWith('→')) className = 'text-blue-400';
+                        else if (line.startsWith('---')) className = 'text-yellow-400 font-bold';
+                        
+                        return (
+                          <div key={idx} className={className}>
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </details>
                 </>
               )}

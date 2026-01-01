@@ -779,12 +779,13 @@ serve(async (req) => {
       console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : 'ICA'}`);
 
       let structuredResult;
+      let textUsedForParsing = rawPdfText;
       
       if (selectedVersion === 'experimental') {
         // Experimental parser: Pre-process text to fix merged fields
         debugLog.push('→ Using experimental parser with pre-processing...');
         const preprocessedText = preprocessICAText(rawPdfText);
-        debugLog.push(`→ Pre-processed text (first 200 chars): ${preprocessedText.substring(0, 200)}`);
+        textUsedForParsing = preprocessedText;
         
         structuredResult = isWillys
           ? parseWillysReceiptText(rawPdfText) // Willys doesn't need preprocessing
@@ -884,6 +885,15 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
         );
       } else {
         debugLog.push('✗ Structured parsing returned no items or failed');
+        // Include PDF text in debug for troubleshooting
+        debugLog.push(`--- PDF TEXT USED FOR PARSING (${textUsedForParsing.length} chars) ---`);
+        debugLog.push(textUsedForParsing);
+        debugLog.push('--- END PDF TEXT ---');
+        if (selectedVersion === 'experimental' && textUsedForParsing !== rawPdfText) {
+          debugLog.push(`--- ORIGINAL RAW TEXT (before preprocessing, ${rawPdfText.length} chars) ---`);
+          debugLog.push(rawPdfText);
+          debugLog.push('--- END ORIGINAL RAW TEXT ---');
+        }
       }
     } else {
       debugLog.push('✗ No rawPdfText available for structured parsing');
