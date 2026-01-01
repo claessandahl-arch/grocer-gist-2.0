@@ -7,11 +7,12 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, RefreshCw, Trash2, CheckCircle2, AlertCircle, Zap, Brain, FlaskConical } from "lucide-react";
+import { Upload, FileText, Loader2, RefreshCw, Trash2, CheckCircle2, AlertCircle, Zap, Brain, FlaskConical, GitCompare } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { categories, categoryNames } from "@/lib/categoryConstants";
+import { ComparisonView } from "./ComparisonView";
 
-type ParserVersion = 'current' | 'experimental' | 'ai_only';
+type ParserVersion = 'current' | 'experimental' | 'ai_only' | 'comparison';
 
 interface ParsedItem {
   name: string;
@@ -35,6 +36,50 @@ interface ParseResult {
   };
 }
 
+// Comparison mode types
+interface ItemDiff {
+  structuredItem?: ParsedItem;
+  aiItem?: ParsedItem;
+  matchType: 'exact' | 'name_match' | 'fuzzy' | 'price_match' | 'unmatched_structured' | 'unmatched_ai';
+  differences: {
+    field: 'name' | 'price' | 'quantity' | 'category' | 'discount';
+    structured: any;
+    ai: any;
+  }[];
+}
+
+interface ComparisonResult {
+  mode: 'comparison';
+  structured: {
+    store_name: string;
+    total_amount: number;
+    receipt_date: string;
+    items: ParsedItem[];
+    method: 'structured_parser';
+    timing: number;
+  } | null;
+  ai: {
+    store_name: string;
+    total_amount: number;
+    receipt_date: string;
+    items: ParsedItem[];
+    method: 'ai_parser';
+    timing: number;
+  };
+  diff: {
+    storeName: { structured: string | null; ai: string; match: boolean };
+    totalAmount: { structured: number | null; ai: number; diff: number | null };
+    receiptDate: { structured: string | null; ai: string; match: boolean };
+    itemCount: { structured: number; ai: number };
+    items: ItemDiff[];
+    matchRate: number;
+    priceAccuracy: number;
+  };
+  _debug: {
+    debugLog: string[];
+  };
+}
+
 interface UploadedFile {
   name: string;
   preview: string;
@@ -47,6 +92,7 @@ export function ParsingTrainer() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseTime, setParseTime] = useState<number | null>(null);
   const [parserVersion, setParserVersion] = useState<ParserVersion>('current');
@@ -98,6 +144,7 @@ export function ParsingTrainer() {
 
     // Clear previous results
     setParseResult(null);
+    setComparisonResult(null);
     setParseError(null);
     setParseTime(null);
 
@@ -153,6 +200,7 @@ export function ParsingTrainer() {
     setUploadedFile(null);
     setPdfFile(null);
     setParseResult(null);
+    setComparisonResult(null);
     setParseError(null);
     setParseTime(null);
   }, [uploadedFile]);
@@ -162,6 +210,8 @@ export function ParsingTrainer() {
 
     setParsing(true);
     setParseError(null);
+    setParseResult(null);
+    setComparisonResult(null);
     const startTime = Date.now();
 
     try {
@@ -232,9 +282,15 @@ export function ParsingTrainer() {
       if (error) throw error;
 
       if (data) {
-        setParseResult(data);
-        const method = data._debug?.method === 'structured_parser' ? 'strukturerad parser' : 'AI (Gemini)';
-        toast.success(`Tolkning klar med ${method}!`);
+        // Check if this is a comparison response
+        if (data.mode === 'comparison') {
+          setComparisonResult(data as ComparisonResult);
+          toast.success('Jämförelse klar!');
+        } else {
+          setParseResult(data);
+          const method = data._debug?.method === 'structured_parser' ? 'strukturerad parser' : 'AI (Gemini)';
+          toast.success(`Tolkning klar med ${method}!`);
+        }
       }
     } catch (error: any) {
       console.error('Parse error:', error);
@@ -291,12 +347,19 @@ export function ParsingTrainer() {
                     <span>Endast AI (Gemini)</span>
                   </div>
                 </SelectItem>
+                <SelectItem value="comparison">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Jämför</Badge>
+                    <span>AI vs Strukturerad</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
               {parserVersion === 'current' && 'Använder produktionsversionen av den strukturerade parsern.'}
               {parserVersion === 'experimental' && 'Testar ny parser med förbättrad textbearbetning för ICA-kvitton.'}
               {parserVersion === 'ai_only' && 'Hoppar över strukturerad parsing och använder endast AI.'}
+              {parserVersion === 'comparison' && 'Kör båda parsers och jämför resultaten sida vid sida.'}
             </p>
           </div>
 
@@ -386,17 +449,31 @@ export function ParsingTrainer() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {parseResult ? (
+            {comparisonResult ? (
+              <GitCompare className="h-5 w-5 text-blue-500" />
+            ) : parseResult ? (
               <CheckCircle2 className="h-5 w-5 text-green-500" />
             ) : parseError ? (
               <AlertCircle className="h-5 w-5 text-red-500" />
             ) : (
               <FileText className="h-5 w-5" />
             )}
-            Tolkningsresultat
+            {comparisonResult ? 'Jämförelse: AI vs Strukturerad' : 'Tolkningsresultat'}
           </CardTitle>
           <CardDescription>
-            {parseResult ? (
+            {comparisonResult ? (
+              <span className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  <GitCompare className="h-3 w-3 mr-1" />
+                  Jämförelseläge
+                </Badge>
+                {parseTime && (
+                  <Badge variant="outline">
+                    Total: {(parseTime / 1000).toFixed(1)}s
+                  </Badge>
+                )}
+              </span>
+            ) : parseResult ? (
               <span className="flex items-center gap-2 flex-wrap">
                 Metod:{' '}
                 <Badge variant={parseResult._debug?.method === 'structured_parser' ? 'default' : 'secondary'}>
@@ -442,7 +519,13 @@ export function ParsingTrainer() {
             </div>
           )}
 
-          {parseResult && (
+          {/* Comparison View */}
+          {comparisonResult && (
+            <ComparisonView result={comparisonResult} parseTime={parseTime} />
+          )}
+
+          {/* Normal Parse Result */}
+          {parseResult && !comparisonResult && (
             <div className="space-y-4">
               {/* Header info */}
               <div className="grid grid-cols-3 gap-4 text-sm">
@@ -540,7 +623,7 @@ export function ParsingTrainer() {
             </div>
           )}
 
-          {!parseResult && !parseError && (
+          {!parseResult && !comparisonResult && !parseError && (
             <p className="text-muted-foreground text-center py-8">
               Ladda upp ett kvitto och klicka på "Testa tolkning" för att se resultatet.
             </p>

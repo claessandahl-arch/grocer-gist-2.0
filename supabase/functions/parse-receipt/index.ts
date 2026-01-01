@@ -46,6 +46,50 @@ interface ParsedItem {
   discount?: number;
 }
 
+// Comparison mode types
+interface ItemDiff {
+  structuredItem?: ParsedItem;
+  aiItem?: ParsedItem;
+  matchType: 'exact' | 'name_match' | 'fuzzy' | 'price_match' | 'unmatched_structured' | 'unmatched_ai';
+  differences: {
+    field: 'name' | 'price' | 'quantity' | 'category' | 'discount';
+    structured: any;
+    ai: any;
+  }[];
+}
+
+interface ComparisonResult {
+  mode: 'comparison';
+  structured: {
+    store_name: string;
+    total_amount: number;
+    receipt_date: string;
+    items: ParsedItem[];
+    method: 'structured_parser';
+    timing: number;
+  } | null;
+  ai: {
+    store_name: string;
+    total_amount: number;
+    receipt_date: string;
+    items: ParsedItem[];
+    method: 'ai_parser';
+    timing: number;
+  };
+  diff: {
+    storeName: { structured: string | null; ai: string; match: boolean };
+    totalAmount: { structured: number | null; ai: number; diff: number | null };
+    receiptDate: { structured: string | null; ai: string; match: boolean };
+    itemCount: { structured: number; ai: number };
+    items: ItemDiff[];
+    matchRate: number;
+    priceAccuracy: number;
+  };
+  _debug: {
+    debugLog: string[];
+  };
+}
+
 /**
  * Parse structured Willys receipt text directly
  * Willys format: [Product Name] [Quantity*Price] [Total]
@@ -685,6 +729,195 @@ function parseICAReceiptText(text: string): { items: ParsedItem[]; store_name?: 
   }
 }
 
+/**
+ * Normalize string for fuzzy comparison
+ */
+function normalizeString(str: string): string {
+  return str.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Calculate similarity between two strings (0-1)
+ * Uses a simple Jaccard-like approach with character trigrams
+ */
+function stringSimilarity(a: string, b: string): number {
+  const aNorm = normalizeString(a);
+  const bNorm = normalizeString(b);
+  
+  if (aNorm === bNorm) return 1;
+  if (!aNorm || !bNorm) return 0;
+  
+  // Extract trigrams
+  const getTrigrams = (s: string): Set<string> => {
+    const trigrams = new Set<string>();
+    for (let i = 0; i <= s.length - 3; i++) {
+      trigrams.add(s.substring(i, i + 3));
+    }
+    return trigrams;
+  };
+  
+  const aGrams = getTrigrams(aNorm);
+  const bGrams = getTrigrams(bNorm);
+  
+  if (aGrams.size === 0 || bGrams.size === 0) return 0;
+  
+  let intersection = 0;
+  for (const gram of aGrams) {
+    if (bGrams.has(gram)) intersection++;
+  }
+  
+  return intersection / (aGrams.size + bGrams.size - intersection);
+}
+
+/**
+ * Compare items from structured and AI parsers
+ * Returns diff information for each item
+ */
+function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): ItemDiff[] {
+  const diffs: ItemDiff[] = [];
+  const matchedAiIndices = new Set<number>();
+  const matchedStructuredIndices = new Set<number>();
+  
+  // Pass 1: Exact name + price match
+  for (let si = 0; si < structuredItems.length; si++) {
+    if (matchedStructuredIndices.has(si)) continue;
+    const sItem = structuredItems[si];
+    
+    for (let ai = 0; ai < aiItems.length; ai++) {
+      if (matchedAiIndices.has(ai)) continue;
+      const aItem = aiItems[ai];
+      
+      if (normalizeString(sItem.name) === normalizeString(aItem.name) &&
+          Math.abs(sItem.price - aItem.price) < 0.01) {
+        const differences: ItemDiff['differences'] = [];
+        
+        if (sItem.quantity !== aItem.quantity) {
+          differences.push({ field: 'quantity', structured: sItem.quantity, ai: aItem.quantity });
+        }
+        if (sItem.category !== aItem.category) {
+          differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
+        }
+        
+        diffs.push({
+          structuredItem: sItem,
+          aiItem: aItem,
+          matchType: 'exact',
+          differences
+        });
+        
+        matchedStructuredIndices.add(si);
+        matchedAiIndices.add(ai);
+        break;
+      }
+    }
+  }
+  
+  // Pass 2: Fuzzy name match (>70% similarity)
+  for (let si = 0; si < structuredItems.length; si++) {
+    if (matchedStructuredIndices.has(si)) continue;
+    const sItem = structuredItems[si];
+    
+    let bestMatch = { idx: -1, similarity: 0 };
+    for (let ai = 0; ai < aiItems.length; ai++) {
+      if (matchedAiIndices.has(ai)) continue;
+      const aItem = aiItems[ai];
+      
+      const sim = stringSimilarity(sItem.name, aItem.name);
+      if (sim > bestMatch.similarity && sim > 0.7) {
+        bestMatch = { idx: ai, similarity: sim };
+      }
+    }
+    
+    if (bestMatch.idx >= 0) {
+      const aItem = aiItems[bestMatch.idx];
+      const differences: ItemDiff['differences'] = [];
+      
+      if (normalizeString(sItem.name) !== normalizeString(aItem.name)) {
+        differences.push({ field: 'name', structured: sItem.name, ai: aItem.name });
+      }
+      if (Math.abs(sItem.price - aItem.price) > 0.01) {
+        differences.push({ field: 'price', structured: sItem.price, ai: aItem.price });
+      }
+      if (sItem.quantity !== aItem.quantity) {
+        differences.push({ field: 'quantity', structured: sItem.quantity, ai: aItem.quantity });
+      }
+      if (sItem.category !== aItem.category) {
+        differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
+      }
+      
+      diffs.push({
+        structuredItem: sItem,
+        aiItem: aItem,
+        matchType: differences.length === 0 ? 'name_match' : 'fuzzy',
+        differences
+      });
+      
+      matchedStructuredIndices.add(si);
+      matchedAiIndices.add(bestMatch.idx);
+    }
+  }
+  
+  // Pass 3: Price match (same price, might be different name)
+  for (let si = 0; si < structuredItems.length; si++) {
+    if (matchedStructuredIndices.has(si)) continue;
+    const sItem = structuredItems[si];
+    
+    for (let ai = 0; ai < aiItems.length; ai++) {
+      if (matchedAiIndices.has(ai)) continue;
+      const aItem = aiItems[ai];
+      
+      if (Math.abs(sItem.price - aItem.price) < 0.10) {
+        const differences: ItemDiff['differences'] = [];
+        
+        differences.push({ field: 'name', structured: sItem.name, ai: aItem.name });
+        if (sItem.quantity !== aItem.quantity) {
+          differences.push({ field: 'quantity', structured: sItem.quantity, ai: aItem.quantity });
+        }
+        if (sItem.category !== aItem.category) {
+          differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
+        }
+        
+        diffs.push({
+          structuredItem: sItem,
+          aiItem: aItem,
+          matchType: 'price_match',
+          differences
+        });
+        
+        matchedStructuredIndices.add(si);
+        matchedAiIndices.add(ai);
+        break;
+      }
+    }
+  }
+  
+  // Unmatched structured items
+  for (let si = 0; si < structuredItems.length; si++) {
+    if (!matchedStructuredIndices.has(si)) {
+      diffs.push({
+        structuredItem: structuredItems[si],
+        aiItem: undefined,
+        matchType: 'unmatched_structured',
+        differences: []
+      });
+    }
+  }
+  
+  // Unmatched AI items
+  for (let ai = 0; ai < aiItems.length; ai++) {
+    if (!matchedAiIndices.has(ai)) {
+      diffs.push({
+        structuredItem: undefined,
+        aiItem: aiItems[ai],
+        matchType: 'unmatched_ai',
+        differences: []
+      });
+    }
+  }
+  
+  return diffs;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -694,9 +927,11 @@ serve(async (req) => {
     const { imageUrl, imageUrls, originalFilename, pdfUrl, parserVersion } = await req.json();
 
     // Parser version for A/B testing (default: 'current')
-    // Supported: 'current' | 'experimental' | 'ai_only'
+    // Supported: 'current' | 'experimental' | 'ai_only' | 'comparison'
     const selectedVersion = parserVersion || 'current';
     console.log(`🔧 Parser version: ${selectedVersion}`);
+    
+    const isComparisonMode = selectedVersion === 'comparison';
 
     // Support both single image (legacy) and multiple images (new)
     const imagesToProcess = imageUrls || (imageUrl ? [imageUrl] : []);
@@ -836,9 +1071,15 @@ serve(async (req) => {
 
     // Try structured parsing first if we have raw PDF text
     // Skip structured parsing if parserVersion is 'ai_only'
+    // For comparison mode, we run both parsers
+    let structuredResult: { items: ParsedItem[]; store_name?: string; _debug?: any } | null = null;
+    let structuredTiming = 0;
+    let textUsedForParsing = rawPdfText;
+    
     if (rawPdfText && selectedVersion !== 'ai_only') {
+      const structuredStart = Date.now();
       console.log('🔍 Trying structured parsing with raw PDF text...');
-      debugLog.push(`→ Attempting structured parsing (version: ${selectedVersion})...`);
+      debugLog.push(`→ Attempting structured parsing (version: ${isComparisonMode ? 'experimental' : selectedVersion})...`);
 
       // Detect store type from PDF text
       const isWillys = rawPdfText.toLowerCase().includes('willys') ||
@@ -851,11 +1092,9 @@ serve(async (req) => {
 
       console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
       debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
-
-      let structuredResult;
-      let textUsedForParsing = rawPdfText;
       
-      if (selectedVersion === 'experimental') {
+      // For comparison mode, always use experimental parser
+      if (selectedVersion === 'experimental' || isComparisonMode) {
         // Experimental parser: Pre-process text to fix merged fields
         debugLog.push('→ Using experimental parser with pre-processing...');
         const preprocessedText = preprocessICAText(rawPdfText);
@@ -880,8 +1119,11 @@ serve(async (req) => {
           ? parseWillysReceiptText(rawPdfText)
           : parseICAReceiptText(rawPdfText);
       }
+      
+      structuredTiming = Date.now() - structuredStart;
 
-      if (structuredResult && structuredResult.items && structuredResult.items.length > 0) {
+      // For non-comparison mode, return structured results if successful
+      if (!isComparisonMode && structuredResult && structuredResult.items && structuredResult.items.length > 0) {
         console.log('🎯 Using structured parsing results instead of AI!');
         debugLog.push(`✓ Structured parsing succeeded: ${structuredResult.items.length} items`);
 
@@ -967,7 +1209,7 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-      } else {
+      } else if (!isComparisonMode) {
         debugLog.push('✗ Structured parsing returned no items or failed');
         // Include PDF text in debug for troubleshooting
         debugLog.push(`--- PDF TEXT USED FOR PARSING (${textUsedForParsing.length} chars) ---`);
@@ -979,8 +1221,17 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
           debugLog.push('--- END ORIGINAL RAW TEXT ---');
         }
       }
-    } else {
+    } else if (!isComparisonMode) {
       debugLog.push('✗ No rawPdfText available for structured parsing');
+    }
+
+    // Log structured parsing result for comparison mode
+    if (isComparisonMode) {
+      if (structuredResult && structuredResult.items.length > 0) {
+        debugLog.push(`✓ Structured parsing: ${structuredResult.items.length} items (${structuredTiming}ms)`);
+      } else {
+        debugLog.push(`✗ Structured parsing: 0 items (${structuredTiming}ms)`);
+      }
     }
 
     console.log('⚠️ Structured parsing not available, falling back to AI...');
@@ -1367,6 +1618,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
       }))
     ];
 
+    const aiStartTime = Date.now();
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
@@ -1459,6 +1711,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     }
 
     const data = await response.json();
+    const aiTiming = Date.now() - aiStartTime;
     console.log('AI response:', JSON.stringify(data, null, 2));
 
     const functionCall = data.choices?.[0]?.message?.tool_calls?.[0]?.function;
@@ -1468,8 +1721,97 @@ Return ONLY the function call with properly formatted JSON. No additional text o
 
     const parsedData = JSON.parse(functionCall.arguments);
     console.log('Parsed receipt data:', JSON.stringify(parsedData, null, 2));
+    debugLog.push(`✓ AI parsing: ${parsedData.items?.length || 0} items (${aiTiming}ms)`);
 
-    // Add debug info to AI response
+    // Handle comparison mode response
+    if (isComparisonMode) {
+      console.log('📊 Building comparison response...');
+      
+      // Extract date from filename for structured result
+      let receiptDate = new Date().toISOString().split('T')[0];
+      if (originalFilename) {
+        const dateMatch = originalFilename.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          receiptDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+        }
+      }
+      
+      const structuredItems = structuredResult?.items || [];
+      const aiItems = parsedData.items || [];
+      
+      // Compute item diff
+      const itemDiffs = computeItemDiff(structuredItems, aiItems);
+      
+      // Calculate match metrics
+      const totalMatched = itemDiffs.filter(d => 
+        d.matchType === 'exact' || d.matchType === 'name_match' || d.matchType === 'fuzzy' || d.matchType === 'price_match'
+      ).length;
+      const matchRate = aiItems.length > 0 ? (totalMatched / aiItems.length) * 100 : 0;
+      
+      // Calculate price accuracy (items with price diff < 0.10)
+      const priceAccurateCount = itemDiffs.filter(d => {
+        if (!d.structuredItem || !d.aiItem) return false;
+        return Math.abs(d.structuredItem.price - d.aiItem.price) < 0.10;
+      }).length;
+      const priceAccuracy = totalMatched > 0 ? (priceAccurateCount / totalMatched) * 100 : 0;
+      
+      const structuredTotal = structuredItems.reduce((sum, item) => sum + item.price, 0);
+      const aiTotal = parsedData.total_amount || aiItems.reduce((sum: number, item: any) => sum + item.price, 0);
+      
+      const comparisonResponse: ComparisonResult = {
+        mode: 'comparison',
+        structured: structuredResult && structuredItems.length > 0 ? {
+          store_name: structuredResult.store_name || 'ICA',
+          total_amount: parseFloat(structuredTotal.toFixed(2)),
+          receipt_date: receiptDate,
+          items: structuredItems,
+          method: 'structured_parser',
+          timing: structuredTiming
+        } : null,
+        ai: {
+          store_name: parsedData.store_name,
+          total_amount: parseFloat(aiTotal.toFixed(2)),
+          receipt_date: parsedData.receipt_date || receiptDate,
+          items: aiItems,
+          method: 'ai_parser',
+          timing: aiTiming
+        },
+        diff: {
+          storeName: {
+            structured: structuredResult?.store_name || null,
+            ai: parsedData.store_name,
+            match: structuredResult?.store_name?.toLowerCase() === parsedData.store_name?.toLowerCase()
+          },
+          totalAmount: {
+            structured: structuredItems.length > 0 ? parseFloat(structuredTotal.toFixed(2)) : null,
+            ai: parseFloat(aiTotal.toFixed(2)),
+            diff: structuredItems.length > 0 ? parseFloat((aiTotal - structuredTotal).toFixed(2)) : null
+          },
+          receiptDate: {
+            structured: receiptDate,
+            ai: parsedData.receipt_date || receiptDate,
+            match: receiptDate === (parsedData.receipt_date || receiptDate)
+          },
+          itemCount: {
+            structured: structuredItems.length,
+            ai: aiItems.length
+          },
+          items: itemDiffs,
+          matchRate: parseFloat(matchRate.toFixed(1)),
+          priceAccuracy: parseFloat(priceAccuracy.toFixed(1))
+        },
+        _debug: {
+          debugLog: debugLog
+        }
+      };
+      
+      return new Response(
+        JSON.stringify(comparisonResponse),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Add debug info to AI response (non-comparison mode)
     parsedData._debug = {
       method: 'ai_parser',
       parserVersion: selectedVersion,
