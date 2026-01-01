@@ -260,7 +260,7 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
  * Problem: PDF text extraction sometimes merges fields without spaces:
  *   "Gorgonz select 26%2022015800000265,001,00 st49,29"
  * 
- * Solution: Insert spaces before article numbers (8-13 digit sequences)
+ * Solution: Insert spaces before article numbers (8-16 digit sequences)
  *   "Gorgonz select 26% 2022015800000265 ,001,00 st 49,29"
  * 
  * This is used by the experimental parser to improve ICA Kvantum parsing.
@@ -268,19 +268,88 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
 function preprocessICAText(text: string): string {
   let processed = text;
   
-  // Insert space before 8-13 digit sequences (article numbers/barcodes)
+  // Insert space before 8-16 digit sequences (article numbers/barcodes)
+  // ICA Kvantum uses 14-16 digit barcodes (e.g., 209193290000079, 2096371500000549)
   // This handles: "ProductName2022015800000265" → "ProductName 2022015800000265"
-  processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,13})/g, '$1 $2');
+  processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,16})/g, '$1 $2');
   
   // Insert space before price patterns at end of merged text
   // This handles: "st49,29" → "st 49,29"
   processed = processed.replace(/(st|kg|l|ml|g)(\d+[,.]?\d*)\s*$/gm, '$1 $2');
   
-  // Insert space after article numbers before quantity
+  // Insert space after article numbers before quantity/price
   // This handles: "2022015800000265,001,00" → "2022015800000265 ,001,00"
-  processed = processed.replace(/(\d{8,13})([,.])/g, '$1 $2');
+  processed = processed.replace(/(\d{8,16})([,.])/g, '$1 $2');
   
   return processed;
+}
+
+/**
+ * Parse ICA Kvantum "Kvitto" format (table-based receipt)
+ * Format: BeskrivningArtikelnummerPrisMängdSumma(SEK)
+ * Each line: "ProductName ArticleNumber UnitPrice Quantity Summa"
+ */
+function parseICAKvantumText(text: string): { items: ParsedItem[]; store_name?: string; _debug?: any } | null {
+  try {
+    console.log('🔧 Attempting ICA Kvantum structured parsing...');
+    
+    const items: ParsedItem[] = [];
+    
+    // Find store name
+    let storeName = 'ICA Kvantum';
+    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ]+)/i);
+    if (storeMatch) {
+      storeName = `ICA Kvantum ${storeMatch[1]}`;
+    }
+    
+    // Match product lines with pattern:
+    // ProductName + 14-16 digit article number + prices
+    // Example: "Blåmusslor färska 209193290000079 ,001,00 st 316,00"
+    // Or preprocessed: "Kammussla 2096371500000549 ,001,00 st 209,72"
+    
+    // Regex to match: ProductName ArticleNumber [UnitPrice] Quantity Unit Summa
+    // The unit price field seems to be ",00" for most items (maybe junk data)
+    const productPattern = /([A-Za-zåäöÅÄÖ\s\-\d]+?)\s+(\d{13,16})\s+[,.]?\d*[,.]?\d*\s*(\d+[,.]\d+)\s*st\s+(\d+[,.]\d+)/g;
+    
+    let match;
+    while ((match = productPattern.exec(text)) !== null) {
+      const [fullMatch, rawName, articleNumber, quantity, summa] = match;
+      
+      const name = rawName.trim();
+      const qty = parseFloat(quantity.replace(',', '.'));
+      const total = parseFloat(summa.replace(',', '.'));
+      
+      console.log(`  ✓ Found: "${name}" (${articleNumber}) qty=${qty} total=${total}`);
+      
+      items.push({
+        name,
+        article_number: articleNumber,
+        price: total,
+        quantity: qty,
+        category: 'other'
+      });
+    }
+    
+    if (items.length === 0) {
+      console.log('❌ ICA Kvantum parser found no items');
+      return null;
+    }
+    
+    console.log(`✅ ICA Kvantum parsing succeeded: ${items.length} items`);
+    
+    return {
+      items,
+      store_name: storeName,
+      _debug: {
+        method: 'structured_parser_ica_kvantum',
+        items_found: items.length
+      }
+    };
+    
+  } catch (e) {
+    console.error('❌ ICA Kvantum parsing failed:', e);
+    return null;
+  }
 }
 
 /**
@@ -776,7 +845,12 @@ serve(async (req) => {
         rawPdfText.toLowerCase().includes('willy') ||
         rawPdfText.includes('Självscanning');
 
-      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : 'ICA'}`);
+      // Detect ICA Kvantum specifically (has table format with "Beskrivning" header)
+      const isICAKvantum = rawPdfText.includes('Kvantum') && 
+        (rawPdfText.includes('BeskrivningArtikelnummer') || rawPdfText.includes('Beskrivning'));
+
+      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
+      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
 
       let structuredResult;
       let textUsedForParsing = rawPdfText;
@@ -787,9 +861,19 @@ serve(async (req) => {
         const preprocessedText = preprocessICAText(rawPdfText);
         textUsedForParsing = preprocessedText;
         
-        structuredResult = isWillys
-          ? parseWillysReceiptText(rawPdfText) // Willys doesn't need preprocessing
-          : parseICAReceiptText(preprocessedText);
+        if (isWillys) {
+          structuredResult = parseWillysReceiptText(rawPdfText);
+        } else if (isICAKvantum) {
+          // Try ICA Kvantum parser first (table format)
+          debugLog.push('→ Trying ICA Kvantum table parser...');
+          structuredResult = parseICAKvantumText(preprocessedText);
+          if (!structuredResult || structuredResult.items.length === 0) {
+            debugLog.push('→ ICA Kvantum parser failed, trying standard ICA parser...');
+            structuredResult = parseICAReceiptText(preprocessedText);
+          }
+        } else {
+          structuredResult = parseICAReceiptText(preprocessedText);
+        }
       } else {
         // Current (production) parser
         structuredResult = isWillys
