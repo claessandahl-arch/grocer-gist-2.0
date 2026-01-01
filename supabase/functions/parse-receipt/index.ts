@@ -629,14 +629,47 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         continue;
       }
 
+      // === PATTERN 8: Orphan Pant values (no header detected) ===
+      // Sometimes the "Pant" header line isn't detected, but we can identify Pant values
+      // by their characteristic format: "1,0011,00" or "2,0024,00" (merged price+qty+total)
+      const orphanPantMatch = line.match(/^(\d+[,.]\d{2})(\d)(\d+[,.]\d{2})$/);
+      if (orphanPantMatch && !(currentProduct as any)?._expectsDiscount) {
+        // Looks like Pant values - check if reasonable (unit price 1-5 kr, qty 1-20)
+        const unitPrice = parseFloat(orphanPantMatch[1].replace(',', '.'));
+        const qty = parseInt(orphanPantMatch[2]);
+        const total = parseFloat(orphanPantMatch[3].replace(',', '.'));
+
+        // Pant is typically 1-2 kr per item
+        if (unitPrice >= 0.5 && unitPrice <= 5 && qty >= 1 && qty <= 20) {
+          // Save current product first
+          if (currentProduct) {
+            items.push(currentProduct);
+            currentProduct = null;
+          }
+
+          items.push({
+            name: 'Pant',
+            price: total,
+            quantity: qty,
+            category: 'pant'
+          });
+
+          pantCount++;
+          matchedLines++;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    🍾 Pant (orphan values): ${qty}x ${unitPrice} kr = ${total} kr`);
+          continue;
+        }
+      }
+
       // === NO MATCH ===
       skippedLines++;
       expectingPantValues = false;
 
-      // Only log skipped lines if they look like they might be products
-      if (line.length > 5 && !line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
+      // Log all skipped lines for debugging (removed length > 5 filter to catch "Pant")
+      if (!line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
         debugLog.push(`  Line ${i}: "${linePreview}"`);
-        debugLog.push(`    ⏭️ Skipped (no pattern match)`);
+        debugLog.push(`    ⏭️ Skipped (no pattern match)${line.length <= 5 ? ' [short line]' : ''}`);
       }
     }
 
