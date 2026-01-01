@@ -95,8 +95,10 @@ interface ComparisonResult {
  * Willys format: [Product Name] [Quantity*Price] [Total]
  * No article numbers, simpler layout
  */
-function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
+function parseWillysReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
   try {
+    debugLog.push('📋 Willys Parser Starting...');
+    debugLog.push(`  📄 Text length: ${text.length} chars`);
     console.log('🔧 Attempting structured parsing of Willys receipt...');
     console.log('📄 Input text length:', text.length);
     console.log('📄 First 200 chars:', text.substring(0, 200));
@@ -276,6 +278,7 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
       j++;
     }
 
+    debugLog.push(`✅ Willys parsing succeeded: ${items.length} items`);
     console.log(`\n✅ Willys structured parsing succeeded: ${items.length} items`);
     items.forEach((item, idx) => {
       console.log(`  ${idx + 1}. ${item.name} - ${item.quantity}x ${item.price} kr${item.discount ? ` (discount: ${item.discount} kr)` : ''}`);
@@ -311,86 +314,283 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
  */
 function preprocessICAText(text: string): string {
   let processed = text;
-  
+
   // Insert space before 8-16 digit sequences (article numbers/barcodes)
   // ICA Kvantum uses 14-16 digit barcodes (e.g., 209193290000079, 2096371500000549)
   // This handles: "ProductName2022015800000265" → "ProductName 2022015800000265"
   processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,16})/g, '$1 $2');
-  
+
   // Insert space before price patterns at end of merged text
   // This handles: "st49,29" → "st 49,29"
   processed = processed.replace(/(st|kg|l|ml|g)(\d+[,.]?\d*)\s*$/gm, '$1 $2');
-  
+
   // Insert space after article numbers before quantity/price
   // This handles: "2022015800000265,001,00" → "2022015800000265 ,001,00"
   processed = processed.replace(/(\d{8,16})([,.])/g, '$1 $2');
-  
+
   return processed;
 }
 
 /**
  * Parse ICA Kvantum "Kvitto" format (table-based receipt)
  * Format: BeskrivningArtikelnummerPrisMängdSumma(SEK)
- * Each line: "ProductName ArticleNumber UnitPrice Quantity Summa"
+ * 
+ * This parser uses a line-by-line state machine approach to handle:
+ * - Multi-line products (brand/discount on continuation lines)
+ * - Standalone Pant (deposit) lines
+ * - Discount lines that modify the previous product
  */
-function parseICAKvantumText(text: string): { items: ParsedItem[]; store_name?: string; _debug?: any } | null {
+function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
   try {
-    console.log('🔧 Attempting ICA Kvantum structured parsing...');
-    
+    debugLog.push('📋 ICA Kvantum Parser Starting...');
+
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    debugLog.push(`  📄 Text length: ${text.length} chars, ${lines.length} lines`);
+
     const items: ParsedItem[] = [];
-    
+    let currentProduct: ParsedItem | null = null;
+    let totalAmount: number | null = null;
+    let receiptDate: string | null = null;
+
+    // Statistics for summary
+    let matchedLines = 0;
+    let skippedLines = 0;
+    let multilineCount = 0;
+    let discountCount = 0;
+    let pantCount = 0;
+
     // Find store name
     let storeName = 'ICA Kvantum';
-    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ]+)/i);
+    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tangent|Tel|\d)/i);
     if (storeMatch) {
-      storeName = `ICA Kvantum ${storeMatch[1]}`;
+      storeName = `ICA Kvantum ${storeMatch[1].trim()}`;
     }
-    
-    // Match product lines with pattern:
-    // ProductName + 14-16 digit article number + prices
-    // Example: "Blåmusslor färska 209193290000079 ,001,00 st 316,00"
-    // Or preprocessed: "Kammussla 2096371500000549 ,001,00 st 209,72"
-    
-    // Regex to match: ProductName ArticleNumber [UnitPrice] Quantity Unit Summa
-    // The unit price field seems to be ",00" for most items (maybe junk data)
-    const productPattern = /([A-Za-zåäöÅÄÖ\s\-\d]+?)\s+(\d{13,16})\s+[,.]?\d*[,.]?\d*\s*(\d+[,.]\d+)\s*st\s+(\d+[,.]\d+)/g;
-    
-    let match;
-    while ((match = productPattern.exec(text)) !== null) {
-      const [fullMatch, rawName, articleNumber, quantity, summa] = match;
-      
-      const name = rawName.trim();
-      const qty = parseFloat(quantity.replace(',', '.'));
-      const total = parseFloat(summa.replace(',', '.'));
-      
-      console.log(`  ✓ Found: "${name}" (${articleNumber}) qty=${qty} total=${total}`);
-      
-      items.push({
-        name,
-        article_number: articleNumber,
-        price: total,
-        quantity: qty,
-        category: 'other'
-      });
+    debugLog.push(`  🏪 Store: ${storeName}`);
+
+    // Try to extract date from text
+    const dateMatch = text.match(/Datum\s+(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      receiptDate = dateMatch[1];
+      debugLog.push(`  📅 Date: ${receiptDate}`);
     }
-    
+
+    // Try to extract total from "Betalat" line
+    const totalMatch = text.match(/Betalat\s+([\d\s,.]+)/);
+    if (totalMatch) {
+      totalAmount = parseFloat(totalMatch[1].replace(/\s/g, '').replace(',', '.'));
+      debugLog.push(`  💰 Total from receipt: ${totalAmount} kr`);
+    }
+
+    // Find where products start (after header row)
+    let startIdx = 0;
+    const headerIdx = lines.findIndex(l => l.includes('Beskrivning') && (l.includes('Artikelnummer') || l.includes('Pris')));
+    if (headerIdx >= 0) {
+      startIdx = headerIdx + 1;
+      debugLog.push(`  📍 Product section starts at line ${startIdx} (after header)`);
+    }
+
+    // Find where products end (before footer section)
+    let endIdx = lines.length;
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes('Betalat') || line.includes('Moms %') ||
+        line.includes('Betalningsinformation') || line.includes('Erhållen rabatt')) {
+        endIdx = i;
+        debugLog.push(`  🛑 Product section ends at line ${endIdx} (footer detected)`);
+        break;
+      }
+    }
+
+    debugLog.push('');
+    debugLog.push('--- LINE-BY-LINE PROCESSING ---');
+
+    for (let i = startIdx; i < endIdx; i++) {
+      const line = lines[i];
+      const linePreview = line.length > 70 ? line.substring(0, 70) + '...' : line;
+
+      // Pattern 1: Full product line with article number
+      // "*ProductName 1234567890123 21,91 1,00 st 31,95"
+      // Matches: name, article#, unit_price, quantity, unit, total
+      const productMatch = line.match(/^(\*?)([A-Za-zåäöÅÄÖ\s\-&%\d]+?)\s+(\d{10,16})\s+([\d,]+)\s*([\d,]+)\s*st\s+([\d,]+)$/);
+
+      // Pattern 2: Simpler product line (preprocessed text)
+      // "ProductName 1234567890123 ,001,00 st 31,95"
+      const simpleProductMatch = !productMatch ?
+        line.match(/^(\*?)([A-Za-zåäöÅÄÖ\s\-&%\d]+?)\s+(\d{10,16})\s+[,.]?\d*[,.]?\d*\s*([\d,]+)\s*st\s+([\d,]+)$/) : null;
+
+      // Pattern 3: Discount/continuation line (text + negative or positive number at end)
+      // "OLW 4F89                                             -40,80"
+      // "Chokladkaka 2F60                                     -3,90"
+      const continuationMatch = line.match(/^([A-Za-zåäöÅÄÖ\s\d\-&%]+?)\s+(-?\d+[,.]\d+)$/);
+
+      // Pattern 4: Standalone Pant line
+      // "Pant                              2,00         2        4,00"
+      const pantMatch = line.match(/^Pant\s+([\d,]+)\s+(\d+)\s+([\d,]+)$/);
+
+      // Pattern 5: Simple Pant line (just Pant + price)
+      // "Pant                                                  4,00"
+      const simplePantMatch = !pantMatch ? line.match(/^Pant\s+([\d,]+)$/) : null;
+
+      if (productMatch || simpleProductMatch) {
+        const match = productMatch || simpleProductMatch!;
+        const hasDiscountMarker = match[1] === '*';
+        const name = match[2].trim();
+        const articleNumber = match[3];
+        const quantity = productMatch ? parseFloat(match[5].replace(',', '.')) : parseFloat(match[4].replace(',', '.'));
+        const total = productMatch ? parseFloat(match[6].replace(',', '.')) : parseFloat(match[5].replace(',', '.'));
+
+        // Save previous product if exists
+        if (currentProduct) {
+          items.push(currentProduct);
+        }
+
+        currentProduct = {
+          name,
+          article_number: articleNumber,
+          price: total,
+          quantity,
+          category: 'other'
+        };
+
+        // Store whether this product expects a discount line
+        if (hasDiscountMarker) {
+          (currentProduct as any)._expectsDiscount = true;
+        }
+
+        matchedLines++;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    ✓ Product: "${name}" · qty=${quantity} · ${total} kr${hasDiscountMarker ? ' [*expects discount]' : ''}`);
+
+      } else if (continuationMatch && currentProduct) {
+        const textPart = continuationMatch[1].trim();
+        const value = parseFloat(continuationMatch[2].replace(',', '.'));
+
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+
+        if (value < 0) {
+          // It's a discount line - apply to current product
+          const discount = Math.abs(value);
+          currentProduct.discount = (currentProduct.discount || 0) + discount;
+          currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+          discountCount++;
+
+          // Also append brand name if present and not numeric
+          if (textPart && !textPart.match(/^\d/) && textPart.length > 1) {
+            currentProduct.name += ' ' + textPart;
+            multilineCount++;
+            debugLog.push(`    💰 Discount + brand: "${textPart}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
+          } else {
+            debugLog.push(`    💰 Discount: -${discount} kr → price now ${currentProduct.price} kr`);
+          }
+        } else {
+          // It's a name continuation or a price (not negative)
+          if (textPart && !textPart.match(/^\d+[,.]?\d*$/)) {
+            currentProduct.name += ' ' + textPart;
+            multilineCount++;
+            debugLog.push(`    📝 Name continuation: "${textPart}" → "${currentProduct.name}"`);
+          } else {
+            debugLog.push(`    ⏭️ Skipped (numeric continuation without product context)`);
+            skippedLines++;
+          }
+        }
+        matchedLines++;
+
+      } else if (pantMatch || simplePantMatch) {
+        // Save current product first
+        if (currentProduct) {
+          items.push(currentProduct);
+          currentProduct = null;
+        }
+
+        const pantTotal = pantMatch ?
+          parseFloat(pantMatch[3].replace(',', '.')) :
+          parseFloat(simplePantMatch![1].replace(',', '.'));
+        const pantQty = pantMatch ? parseInt(pantMatch[2]) : 1;
+
+        items.push({
+          name: 'Pant',
+          price: pantTotal,
+          quantity: pantQty,
+          category: 'pant'
+        });
+
+        pantCount++;
+        matchedLines++;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    🍾 Pant: ${pantQty}x = ${pantTotal} kr`);
+
+      } else {
+        // Check if this might be a standalone continuation (no match but has text)
+        if (currentProduct && line.length > 2 && !line.match(/^\d/) && !line.includes('Moms') && !line.includes('Totalt')) {
+          // Might be a pure name continuation
+          const possibleName = line.replace(/\s+/g, ' ').trim();
+          if (possibleName.length > 1 && possibleName.length < 50) {
+            currentProduct.name += ' ' + possibleName;
+            multilineCount++;
+            matchedLines++;
+            debugLog.push(`  Line ${i}: "${linePreview}"`);
+            debugLog.push(`    📝 Name continuation (fallback): → "${currentProduct.name}"`);
+            continue;
+          }
+        }
+
+        skippedLines++;
+        // Only log skipped lines if they look like they might be products
+        if (line.length > 5 && !line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    ⏭️ Skipped (no pattern match)`);
+        }
+      }
+    }
+
+    // Don't forget the last product
+    if (currentProduct) {
+      items.push(currentProduct);
+    }
+
+    // Summary
+    debugLog.push('');
+    debugLog.push('📊 PARSER SUMMARY');
+    debugLog.push(`  Total lines processed: ${endIdx - startIdx}`);
+    debugLog.push(`  Products found: ${items.length}`);
+    debugLog.push(`  Lines matched: ${matchedLines}`);
+    debugLog.push(`  Lines skipped: ${skippedLines}`);
+    debugLog.push(`  Multi-line products: ${multilineCount}`);
+    debugLog.push(`  Discounts applied: ${discountCount}`);
+    debugLog.push(`  Pant items: ${pantCount}`);
+
+    // Calculate total from items if not found in receipt
+    const calculatedTotal = parseFloat(items.reduce((sum, item) => sum + item.price, 0).toFixed(2));
+    debugLog.push(`  Calculated total: ${calculatedTotal} kr`);
+    if (totalAmount) {
+      const diff = Math.abs(totalAmount - calculatedTotal);
+      debugLog.push(`  Difference from receipt total: ${diff.toFixed(2)} kr`);
+    }
+
     if (items.length === 0) {
-      console.log('❌ ICA Kvantum parser found no items');
+      debugLog.push('❌ ICA Kvantum parser found no items');
       return null;
     }
-    
-    console.log(`✅ ICA Kvantum parsing succeeded: ${items.length} items`);
-    
+
+    debugLog.push(`✅ ICA Kvantum parsing succeeded: ${items.length} items`);
+
     return {
       items,
       store_name: storeName,
+      total_amount: totalAmount || calculatedTotal,
+      receipt_date: receiptDate || undefined,
       _debug: {
         method: 'structured_parser_ica_kvantum',
-        items_found: items.length
+        items_found: items.length,
+        multiline_count: multilineCount,
+        discount_count: discountCount,
+        pant_count: pantCount
       }
     };
-    
+
   } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    debugLog.push(`❌ ICA Kvantum parsing error: ${errorMsg}`);
     console.error('❌ ICA Kvantum parsing failed:', e);
     return null;
   }
@@ -400,8 +600,10 @@ function parseICAKvantumText(text: string): { items: ParsedItem[]; store_name?: 
  * Parse structured ICA receipt text directly
  * Returns null if parsing fails (fall back to AI)
  */
-function parseICAReceiptText(text: string): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
+function parseICAReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
   try {
+    debugLog.push('📋 ICA Standard Parser Starting...');
+    debugLog.push(`  📄 Text length: ${text.length} chars`);
     console.log('🔧 Attempting structured parsing of ICA receipt...');
     console.log('📄 Input text length:', text.length);
     console.log('📄 First 200 chars:', text.substring(0, 200));
@@ -704,6 +906,7 @@ function parseICAReceiptText(text: string): { items: ParsedItem[]; store_name?: 
       }
     }
 
+    debugLog.push(`✅ ICA Standard parsing succeeded: ${items.length} items`);
     console.log(`✅ Structured parsing succeeded: ${items.length} items`);
     items.forEach((item, idx) => {
       console.log(`  ${idx + 1}. ${item.name} - ${item.quantity}x ${item.price} kr${item.discount ? ` (discount: ${item.discount} kr)` : ''}`);
@@ -743,10 +946,10 @@ function normalizeString(str: string): string {
 function stringSimilarity(a: string, b: string): number {
   const aNorm = normalizeString(a);
   const bNorm = normalizeString(b);
-  
+
   if (aNorm === bNorm) return 1;
   if (!aNorm || !bNorm) return 0;
-  
+
   // Extract trigrams
   const getTrigrams = (s: string): Set<string> => {
     const trigrams = new Set<string>();
@@ -755,17 +958,17 @@ function stringSimilarity(a: string, b: string): number {
     }
     return trigrams;
   };
-  
+
   const aGrams = getTrigrams(aNorm);
   const bGrams = getTrigrams(bNorm);
-  
+
   if (aGrams.size === 0 || bGrams.size === 0) return 0;
-  
+
   let intersection = 0;
   for (const gram of aGrams) {
     if (bGrams.has(gram)) intersection++;
   }
-  
+
   return intersection / (aGrams.size + bGrams.size - intersection);
 }
 
@@ -777,61 +980,61 @@ function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): 
   const diffs: ItemDiff[] = [];
   const matchedAiIndices = new Set<number>();
   const matchedStructuredIndices = new Set<number>();
-  
+
   // Pass 1: Exact name + price match
   for (let si = 0; si < structuredItems.length; si++) {
     if (matchedStructuredIndices.has(si)) continue;
     const sItem = structuredItems[si];
-    
+
     for (let ai = 0; ai < aiItems.length; ai++) {
       if (matchedAiIndices.has(ai)) continue;
       const aItem = aiItems[ai];
-      
+
       if (normalizeString(sItem.name) === normalizeString(aItem.name) &&
-          Math.abs(sItem.price - aItem.price) < 0.01) {
+        Math.abs(sItem.price - aItem.price) < 0.01) {
         const differences: ItemDiff['differences'] = [];
-        
+
         if (sItem.quantity !== aItem.quantity) {
           differences.push({ field: 'quantity', structured: sItem.quantity, ai: aItem.quantity });
         }
         if (sItem.category !== aItem.category) {
           differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
         }
-        
+
         diffs.push({
           structuredItem: sItem,
           aiItem: aItem,
           matchType: 'exact',
           differences
         });
-        
+
         matchedStructuredIndices.add(si);
         matchedAiIndices.add(ai);
         break;
       }
     }
   }
-  
+
   // Pass 2: Fuzzy name match (>70% similarity)
   for (let si = 0; si < structuredItems.length; si++) {
     if (matchedStructuredIndices.has(si)) continue;
     const sItem = structuredItems[si];
-    
+
     let bestMatch = { idx: -1, similarity: 0 };
     for (let ai = 0; ai < aiItems.length; ai++) {
       if (matchedAiIndices.has(ai)) continue;
       const aItem = aiItems[ai];
-      
+
       const sim = stringSimilarity(sItem.name, aItem.name);
       if (sim > bestMatch.similarity && sim > 0.7) {
         bestMatch = { idx: ai, similarity: sim };
       }
     }
-    
+
     if (bestMatch.idx >= 0) {
       const aItem = aiItems[bestMatch.idx];
       const differences: ItemDiff['differences'] = [];
-      
+
       if (normalizeString(sItem.name) !== normalizeString(aItem.name)) {
         differences.push({ field: 'name', structured: sItem.name, ai: aItem.name });
       }
@@ -844,31 +1047,31 @@ function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): 
       if (sItem.category !== aItem.category) {
         differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
       }
-      
+
       diffs.push({
         structuredItem: sItem,
         aiItem: aItem,
         matchType: differences.length === 0 ? 'name_match' : 'fuzzy',
         differences
       });
-      
+
       matchedStructuredIndices.add(si);
       matchedAiIndices.add(bestMatch.idx);
     }
   }
-  
+
   // Pass 3: Price match (same price, might be different name)
   for (let si = 0; si < structuredItems.length; si++) {
     if (matchedStructuredIndices.has(si)) continue;
     const sItem = structuredItems[si];
-    
+
     for (let ai = 0; ai < aiItems.length; ai++) {
       if (matchedAiIndices.has(ai)) continue;
       const aItem = aiItems[ai];
-      
+
       if (Math.abs(sItem.price - aItem.price) < 0.10) {
         const differences: ItemDiff['differences'] = [];
-        
+
         differences.push({ field: 'name', structured: sItem.name, ai: aItem.name });
         if (sItem.quantity !== aItem.quantity) {
           differences.push({ field: 'quantity', structured: sItem.quantity, ai: aItem.quantity });
@@ -876,21 +1079,21 @@ function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): 
         if (sItem.category !== aItem.category) {
           differences.push({ field: 'category', structured: sItem.category, ai: aItem.category });
         }
-        
+
         diffs.push({
           structuredItem: sItem,
           aiItem: aItem,
           matchType: 'price_match',
           differences
         });
-        
+
         matchedStructuredIndices.add(si);
         matchedAiIndices.add(ai);
         break;
       }
     }
   }
-  
+
   // Unmatched structured items
   for (let si = 0; si < structuredItems.length; si++) {
     if (!matchedStructuredIndices.has(si)) {
@@ -902,7 +1105,7 @@ function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): 
       });
     }
   }
-  
+
   // Unmatched AI items
   for (let ai = 0; ai < aiItems.length; ai++) {
     if (!matchedAiIndices.has(ai)) {
@@ -914,7 +1117,7 @@ function computeItemDiff(structuredItems: ParsedItem[], aiItems: ParsedItem[]): 
       });
     }
   }
-  
+
   return diffs;
 }
 
@@ -930,7 +1133,7 @@ serve(async (req) => {
     // Supported: 'current' | 'experimental' | 'ai_only' | 'comparison'
     const selectedVersion = parserVersion || 'current';
     console.log(`🔧 Parser version: ${selectedVersion}`);
-    
+
     const isComparisonMode = selectedVersion === 'comparison';
 
     // Support both single image (legacy) and multiple images (new)
@@ -1075,7 +1278,7 @@ serve(async (req) => {
     let structuredResult: { items: ParsedItem[]; store_name?: string; _debug?: any } | null = null;
     let structuredTiming = 0;
     let textUsedForParsing = rawPdfText;
-    
+
     if (rawPdfText && selectedVersion !== 'ai_only') {
       const structuredStart = Date.now();
       console.log('🔍 Trying structured parsing with raw PDF text...');
@@ -1087,39 +1290,39 @@ serve(async (req) => {
         rawPdfText.includes('Självscanning');
 
       // Detect ICA Kvantum specifically (has table format with "Beskrivning" header)
-      const isICAKvantum = rawPdfText.includes('Kvantum') && 
+      const isICAKvantum = rawPdfText.includes('Kvantum') &&
         (rawPdfText.includes('BeskrivningArtikelnummer') || rawPdfText.includes('Beskrivning'));
 
       console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
       debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
-      
+
       // For comparison mode, always use experimental parser
       if (selectedVersion === 'experimental' || isComparisonMode) {
         // Experimental parser: Pre-process text to fix merged fields
         debugLog.push('→ Using experimental parser with pre-processing...');
         const preprocessedText = preprocessICAText(rawPdfText);
         textUsedForParsing = preprocessedText;
-        
+
         if (isWillys) {
-          structuredResult = parseWillysReceiptText(rawPdfText);
+          structuredResult = parseWillysReceiptText(rawPdfText, debugLog);
         } else if (isICAKvantum) {
           // Try ICA Kvantum parser first (table format)
           debugLog.push('→ Trying ICA Kvantum table parser...');
-          structuredResult = parseICAKvantumText(preprocessedText);
+          structuredResult = parseICAKvantumText(preprocessedText, debugLog);
           if (!structuredResult || structuredResult.items.length === 0) {
             debugLog.push('→ ICA Kvantum parser failed, trying standard ICA parser...');
-            structuredResult = parseICAReceiptText(preprocessedText);
+            structuredResult = parseICAReceiptText(preprocessedText, debugLog);
           }
         } else {
-          structuredResult = parseICAReceiptText(preprocessedText);
+          structuredResult = parseICAReceiptText(preprocessedText, debugLog);
         }
       } else {
         // Current (production) parser
         structuredResult = isWillys
-          ? parseWillysReceiptText(rawPdfText)
-          : parseICAReceiptText(rawPdfText);
+          ? parseWillysReceiptText(rawPdfText, debugLog)
+          : parseICAReceiptText(rawPdfText, debugLog);
       }
-      
+
       structuredTiming = Date.now() - structuredStart;
 
       // For non-comparison mode, return structured results if successful
@@ -1726,7 +1929,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     // Handle comparison mode response
     if (isComparisonMode) {
       console.log('📊 Building comparison response...');
-      
+
       // Extract date from filename for structured result
       let receiptDate = new Date().toISOString().split('T')[0];
       if (originalFilename) {
@@ -1735,29 +1938,29 @@ Return ONLY the function call with properly formatted JSON. No additional text o
           receiptDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
         }
       }
-      
+
       const structuredItems = structuredResult?.items || [];
       const aiItems = parsedData.items || [];
-      
+
       // Compute item diff
       const itemDiffs = computeItemDiff(structuredItems, aiItems);
-      
+
       // Calculate match metrics
-      const totalMatched = itemDiffs.filter(d => 
+      const totalMatched = itemDiffs.filter(d =>
         d.matchType === 'exact' || d.matchType === 'name_match' || d.matchType === 'fuzzy' || d.matchType === 'price_match'
       ).length;
       const matchRate = aiItems.length > 0 ? (totalMatched / aiItems.length) * 100 : 0;
-      
+
       // Calculate price accuracy (items with price diff < 0.10)
       const priceAccurateCount = itemDiffs.filter(d => {
         if (!d.structuredItem || !d.aiItem) return false;
         return Math.abs(d.structuredItem.price - d.aiItem.price) < 0.10;
       }).length;
       const priceAccuracy = totalMatched > 0 ? (priceAccurateCount / totalMatched) * 100 : 0;
-      
+
       const structuredTotal = structuredItems.reduce((sum, item) => sum + item.price, 0);
       const aiTotal = parsedData.total_amount || aiItems.reduce((sum: number, item: any) => sum + item.price, 0);
-      
+
       const comparisonResponse: ComparisonResult = {
         mode: 'comparison',
         structured: structuredResult && structuredItems.length > 0 ? {
@@ -1804,7 +2007,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
           debugLog: debugLog
         }
       };
-      
+
       return new Response(
         JSON.stringify(comparisonResponse),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
