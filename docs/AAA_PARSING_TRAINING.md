@@ -427,7 +427,86 @@ CREATE TABLE parser_test_cases (
 
 ---
 
-### ICA Kvantum Parser Fix ✅ COMPLETE (Merged in PR #8)
+### Phase 7: ICA Kvantum Parser Deep Fix ✅ COMPLETE (January 1, 2026)
+
+#### Problem Statement
+
+The initial ICA Kvantum parser (Phase 6/PR #8) worked but had issues:
+- Only found 37 items instead of 43
+- Match rate: 76.7% vs AI parser
+- Multi-line products split incorrectly
+- Discounts not applied
+- Pant (deposit) items missed
+
+#### Root Causes Identified
+
+| Issue | Root Cause |
+|-------|------------|
+| Debug logs didn't reach UI | Parser used `console.log()` not `debugLog` array |
+| Quantity = 0 | Regex required digit-first, but field starts with comma |
+| Discounts missed | Lines like `-40,80` had no text prefix |
+| Pant = 0 | "Pant" header and values on separate lines |
+| Products skipped | `ü` and `é` not in character class |
+| Name corruption | Multi-line products appended as fallback |
+
+#### Solution: Right-Anchored Parsing
+
+Instead of parsing from left (corrupted by merged fields), parse from the right where format is reliable:
+
+```typescript
+// End of line is always reliable: "... st total"
+const productEndMatch = line.match(/^(.+?)\s+st\s+(\d+[,.]\d+)$/);
+
+// Extract quantity from merged junk like ",951,00"
+// Pattern: junk + quantity + ,00 → e.g., ,95 + 1 + ,00
+const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
+```
+
+#### Implementation Details
+
+**7 patterns implemented in `parseICAKvantumText()`:**
+
+| # | Pattern | Example |
+|---|---------|---------|
+| 1 | Right-anchored product | `Bananschalottenlök ... st 21,95` |
+| 2 | Discount-only | `-40,80` |
+| 3 | Brand + Discount | `OLW 4F89 -40,80` |
+| 4 | Brand continuation | `Citroner 3F18` |
+| 5 | Pant header | `Pant` (alone) |
+| 6 | Pant values | `2,0024,00` (merged) |
+| 7 | Full Pant line | `Pant 2,00 2 4,00` |
+
+**Extended character support:**
+```typescript
+// Added: éèüûôîâêëïÉÈÜÛÔÎÂÊËÏ
+// Handles: F-müsli, Laxfilé, etc.
+```
+
+#### Results
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Products Found | 37 → 4 | **43** | ✅ Matches AI |
+| Match Rate | 76.7% → 9.3% | **100%** | ✅ Perfect |
+| Parse Time | — | **2ms** | vs AI 19,000ms |
+| Discounts | 0 | **4** | ✅ Working |
+| Pant Items | 0 | **4** | ✅ Working |
+| Lines Skipped | 47 | **0** | ✅ All parsed |
+| Total Amount | — | **1735.79 kr** | ✅ Matches AI |
+
+#### Commits
+
+1. `feat: Enhanced parser debug logging and ICA Kvantum multi-line support`
+2. `fix: ICA Kvantum parser with right-anchored strategy`
+3. `fix: Handle comma-prefixed quantity field in ICA Kvantum parser`
+
+#### Known Limitation
+
+Multi-buy bundle discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
+
+---
+
+### ICA Kvantum Parser Fix (Original - PR #8)
 
 #### Problem Solved
 ICA Kvantum receipts had merged fields like:
@@ -542,7 +621,7 @@ function preprocessICAText(text: string): string {
 
 ## Progress Tracking
 
-### ✅ Completed (Merged to feature/parser-versioning)
+### ✅ Completed (Merged to main)
 - [x] Initial ParsingTrainer component (PR #7)
 - [x] Basic upload and parsing functionality
 - [x] Debug log viewer with dark theme + color-coded output
@@ -558,6 +637,17 @@ function preprocessICAText(text: string): string {
 - [x] 4-pass item diff algorithm (exact, fuzzy, price, unmatched)
 - [x] Summary metrics (match rate, price accuracy, timing)
 
+### ✅ Completed (Phase 7 - January 1, 2026)
+- [x] Debug logs flow to Training UI (pass `debugLog` array to parsers)
+- [x] Right-anchored parsing strategy for reliable extraction
+- [x] Discount-only line handling (`-40,80`)
+- [x] Pant state machine (split across 2 lines)
+- [x] Extended character support (`éèüûôîâêëï`)
+- [x] Multi-line product/brand handling
+- [x] Quantity extraction from merged junk (`,951,00` → qty=1)
+- [x] **100% match rate** with AI parser (43/43 items)
+- [x] **2ms parse time** (vs AI 19,000ms)
+
 ### 🔜 Next Up (Phase 4-6)
 - [ ] Test case library database
 - [ ] Accuracy dashboard
@@ -566,3 +656,5 @@ function preprocessICAText(text: string): string {
 ### Known Issues (Lower Priority)
 - [ ] Orphan hash fix
 - [ ] 429 retry logic
+- [ ] Bundle discounts applied to single item (total still correct)
+
