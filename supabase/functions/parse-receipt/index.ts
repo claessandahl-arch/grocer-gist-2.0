@@ -412,27 +412,50 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       const linePreview = line.length > 70 ? line.substring(0, 70) + '...' : line;
 
       // === PATTERN 1: Right-anchored product line (most reliable) ===
-      // Matches: "anything quantity st total" from the right side
-      // This handles merged article numbers by not relying on them
-      // Extended chars: \p{L} for any Unicode letter, or expanded class with éèüûôîâêëï
-      const rightAnchoredMatch = line.match(/^(\*?)(.+?)\s+(\d+[,.]\d+)\s*st\s+(\d+[,.]\d+)$/);
+      // The end of the line is reliable: "... st total"
+      // But the quantity field is merged garbage like ",951,00" (,95 from price + 1,00 qty)
+      // Strategy: Match the reliable parts, extract quantity from the junk
 
-      if (rightAnchoredMatch) {
-        const hasDiscountMarker = rightAnchoredMatch[1] === '*';
-        const rawName = rightAnchoredMatch[2].trim();
-        const quantity = parseFloat(rightAnchoredMatch[3].replace(',', '.'));
-        const total = parseFloat(rightAnchoredMatch[4].replace(',', '.'));
+      // First, check if line ends with " st [number]"
+      const productEndMatch = line.match(/^(.+?)\s+st\s+(\d+[,.]\d+)$/);
 
-        // Extract clean product name (remove article number if embedded)
-        // Article numbers are 10-16 digit sequences, possibly merged with price digits
-        let name = rawName;
-        const articleMatch = rawName.match(/^(.+?)\s*\d{10,}/);
-        if (articleMatch) {
-          name = articleMatch[1].trim();
+      if (productEndMatch) {
+        const beforeSt = productEndMatch[1].trim();
+        const total = parseFloat(productEndMatch[2].replace(',', '.'));
+
+        // Check if line starts with discount marker
+        const hasDiscountMarker = beforeSt.startsWith('*');
+        const rawContent = hasDiscountMarker ? beforeSt.slice(1).trim() : beforeSt;
+
+        // Try to extract quantity from the garbage before "st"
+        // Pattern: ",951,00" means qty=1, ",952,00" means qty=2, ",004,00" means qty=4
+        // The quantity is the digit(s) just before the final ",00" or ",\d\d"
+        let quantity = 1; // default
+        const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
+        if (qtyMatch) {
+          const extractedQty = parseFloat(qtyMatch[1]);
+          if (extractedQty > 0 && extractedQty < 100) { // sanity check
+            quantity = extractedQty;
+          }
         }
 
-        // Remove any leading asterisk that got into the name
-        name = name.replace(/^\*\s*/, '');
+        // Extract product name (everything before the article number)
+        // Article numbers are 10-16 digit sequences
+        let name = rawContent;
+        const articleMatch = rawContent.match(/^(.+?)\s+\d{10,}/);
+        if (articleMatch) {
+          name = articleMatch[1].trim();
+        } else {
+          // No article number found - just take the text part before any long digit sequence
+          const nameMatch = rawContent.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\-&%.,]+)/);
+          if (nameMatch) {
+            name = nameMatch[1].trim();
+          }
+        }
+
+        // Clean up trailing digits/garbage from name
+        name = name.replace(/\s+\d+$/, '').trim();
+        name = name.replace(/\s+[,.]?\d*$/, '').trim();
 
         // Save previous product if exists
         if (currentProduct) {
