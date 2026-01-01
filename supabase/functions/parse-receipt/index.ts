@@ -255,6 +255,104 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
 }
 
 /**
+ * Pre-process ICA receipt text to fix merged fields
+ * 
+ * Problem: PDF text extraction sometimes merges fields without spaces:
+ *   "Gorgonz select 26%2022015800000265,001,00 st49,29"
+ * 
+ * Solution: Insert spaces before article numbers (8-16 digit sequences)
+ *   "Gorgonz select 26% 2022015800000265 ,001,00 st 49,29"
+ * 
+ * This is used by the experimental parser to improve ICA Kvantum parsing.
+ */
+function preprocessICAText(text: string): string {
+  let processed = text;
+  
+  // Insert space before 8-16 digit sequences (article numbers/barcodes)
+  // ICA Kvantum uses 14-16 digit barcodes (e.g., 209193290000079, 2096371500000549)
+  // This handles: "ProductName2022015800000265" → "ProductName 2022015800000265"
+  processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,16})/g, '$1 $2');
+  
+  // Insert space before price patterns at end of merged text
+  // This handles: "st49,29" → "st 49,29"
+  processed = processed.replace(/(st|kg|l|ml|g)(\d+[,.]?\d*)\s*$/gm, '$1 $2');
+  
+  // Insert space after article numbers before quantity/price
+  // This handles: "2022015800000265,001,00" → "2022015800000265 ,001,00"
+  processed = processed.replace(/(\d{8,16})([,.])/g, '$1 $2');
+  
+  return processed;
+}
+
+/**
+ * Parse ICA Kvantum "Kvitto" format (table-based receipt)
+ * Format: BeskrivningArtikelnummerPrisMängdSumma(SEK)
+ * Each line: "ProductName ArticleNumber UnitPrice Quantity Summa"
+ */
+function parseICAKvantumText(text: string): { items: ParsedItem[]; store_name?: string; _debug?: any } | null {
+  try {
+    console.log('🔧 Attempting ICA Kvantum structured parsing...');
+    
+    const items: ParsedItem[] = [];
+    
+    // Find store name
+    let storeName = 'ICA Kvantum';
+    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ]+)/i);
+    if (storeMatch) {
+      storeName = `ICA Kvantum ${storeMatch[1]}`;
+    }
+    
+    // Match product lines with pattern:
+    // ProductName + 14-16 digit article number + prices
+    // Example: "Blåmusslor färska 209193290000079 ,001,00 st 316,00"
+    // Or preprocessed: "Kammussla 2096371500000549 ,001,00 st 209,72"
+    
+    // Regex to match: ProductName ArticleNumber [UnitPrice] Quantity Unit Summa
+    // The unit price field seems to be ",00" for most items (maybe junk data)
+    const productPattern = /([A-Za-zåäöÅÄÖ\s\-\d]+?)\s+(\d{13,16})\s+[,.]?\d*[,.]?\d*\s*(\d+[,.]\d+)\s*st\s+(\d+[,.]\d+)/g;
+    
+    let match;
+    while ((match = productPattern.exec(text)) !== null) {
+      const [fullMatch, rawName, articleNumber, quantity, summa] = match;
+      
+      const name = rawName.trim();
+      const qty = parseFloat(quantity.replace(',', '.'));
+      const total = parseFloat(summa.replace(',', '.'));
+      
+      console.log(`  ✓ Found: "${name}" (${articleNumber}) qty=${qty} total=${total}`);
+      
+      items.push({
+        name,
+        article_number: articleNumber,
+        price: total,
+        quantity: qty,
+        category: 'other'
+      });
+    }
+    
+    if (items.length === 0) {
+      console.log('❌ ICA Kvantum parser found no items');
+      return null;
+    }
+    
+    console.log(`✅ ICA Kvantum parsing succeeded: ${items.length} items`);
+    
+    return {
+      items,
+      store_name: storeName,
+      _debug: {
+        method: 'structured_parser_ica_kvantum',
+        items_found: items.length
+      }
+    };
+    
+  } catch (e) {
+    console.error('❌ ICA Kvantum parsing failed:', e);
+    return null;
+  }
+}
+
+/**
  * Parse structured ICA receipt text directly
  * Returns null if parsing fails (fall back to AI)
  */
@@ -593,7 +691,12 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrl, imageUrls, originalFilename, pdfUrl } = await req.json();
+    const { imageUrl, imageUrls, originalFilename, pdfUrl, parserVersion } = await req.json();
+
+    // Parser version for A/B testing (default: 'current')
+    // Supported: 'current' | 'experimental' | 'ai_only'
+    const selectedVersion = parserVersion || 'current';
+    console.log(`🔧 Parser version: ${selectedVersion}`);
 
     // Support both single image (legacy) and multiple images (new)
     const imagesToProcess = imageUrls || (imageUrl ? [imageUrl] : []);
@@ -732,20 +835,51 @@ serve(async (req) => {
     }
 
     // Try structured parsing first if we have raw PDF text
-    if (rawPdfText) {
+    // Skip structured parsing if parserVersion is 'ai_only'
+    if (rawPdfText && selectedVersion !== 'ai_only') {
       console.log('🔍 Trying structured parsing with raw PDF text...');
-      debugLog.push('→ Attempting structured parsing...');
+      debugLog.push(`→ Attempting structured parsing (version: ${selectedVersion})...`);
 
       // Detect store type from PDF text
       const isWillys = rawPdfText.toLowerCase().includes('willys') ||
         rawPdfText.toLowerCase().includes('willy') ||
         rawPdfText.includes('Självscanning');
 
-      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : 'ICA'}`);
+      // Detect ICA Kvantum specifically (has table format with "Beskrivning" header)
+      const isICAKvantum = rawPdfText.includes('Kvantum') && 
+        (rawPdfText.includes('BeskrivningArtikelnummer') || rawPdfText.includes('Beskrivning'));
 
-      const structuredResult = isWillys
-        ? parseWillysReceiptText(rawPdfText)
-        : parseICAReceiptText(rawPdfText);
+      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
+      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
+
+      let structuredResult;
+      let textUsedForParsing = rawPdfText;
+      
+      if (selectedVersion === 'experimental') {
+        // Experimental parser: Pre-process text to fix merged fields
+        debugLog.push('→ Using experimental parser with pre-processing...');
+        const preprocessedText = preprocessICAText(rawPdfText);
+        textUsedForParsing = preprocessedText;
+        
+        if (isWillys) {
+          structuredResult = parseWillysReceiptText(rawPdfText);
+        } else if (isICAKvantum) {
+          // Try ICA Kvantum parser first (table format)
+          debugLog.push('→ Trying ICA Kvantum table parser...');
+          structuredResult = parseICAKvantumText(preprocessedText);
+          if (!structuredResult || structuredResult.items.length === 0) {
+            debugLog.push('→ ICA Kvantum parser failed, trying standard ICA parser...');
+            structuredResult = parseICAReceiptText(preprocessedText);
+          }
+        } else {
+          structuredResult = parseICAReceiptText(preprocessedText);
+        }
+      } else {
+        // Current (production) parser
+        structuredResult = isWillys
+          ? parseWillysReceiptText(rawPdfText)
+          : parseICAReceiptText(rawPdfText);
+      }
 
       if (structuredResult && structuredResult.items && structuredResult.items.length > 0) {
         console.log('🎯 Using structured parsing results instead of AI!');
@@ -825,6 +959,7 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
             items: structuredResult.items,
             _debug: {
               method: 'structured_parser',
+              parserVersion: selectedVersion,
               debugLog: debugLog,
               items_found: structuredResult.items.length,
               pdf_text_length: rawPdfText.length
@@ -834,6 +969,15 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
         );
       } else {
         debugLog.push('✗ Structured parsing returned no items or failed');
+        // Include PDF text in debug for troubleshooting
+        debugLog.push(`--- PDF TEXT USED FOR PARSING (${textUsedForParsing.length} chars) ---`);
+        debugLog.push(textUsedForParsing);
+        debugLog.push('--- END PDF TEXT ---');
+        if (selectedVersion === 'experimental' && textUsedForParsing !== rawPdfText) {
+          debugLog.push(`--- ORIGINAL RAW TEXT (before preprocessing, ${rawPdfText.length} chars) ---`);
+          debugLog.push(rawPdfText);
+          debugLog.push('--- END ORIGINAL RAW TEXT ---');
+        }
       }
     } else {
       debugLog.push('✗ No rawPdfText available for structured parsing');
@@ -1328,6 +1472,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     // Add debug info to AI response
     parsedData._debug = {
       method: 'ai_parser',
+      parserVersion: selectedVersion,
       debugLog: debugLog
     };
 
