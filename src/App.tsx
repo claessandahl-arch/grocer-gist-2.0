@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Navigation } from "./components/Navigation";
+import { DevToolbar } from "./components/DevToolbar";
 import { Loader2 } from "lucide-react";
 
 // Lazy load route components for code splitting
@@ -38,6 +39,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Navigation />
+          <DevToolbar />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
