@@ -512,6 +512,14 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
+2. **Weight-based products (kg)** - Products sold by weight use `kg` instead of `st`. Current pattern only matches `st` unit.
+   - Example: `Julskinka rimmad ... 2,91 kg 320,10` is skipped
+   - **Future fix:** Add pattern for `kg` unit with weight extraction
+
+3. **Receipt-level coupons** - Coupons like "Värdekupong 10%" at the end of the receipt are incorrectly treated as name continuations for the previous product.
+   - Example: "Ägg 12-p Rosa L" gets corrupted to "Ägg 12-p Rosa L Värdekupong 10%" with -353.52 kr discount
+   - **Future fix:** Detect "Värdekupong", "Kupong", "Rabatt" lines as separate discount items
+
 ---
 
 ### ICA Kvantum Parser Fix (Original - PR #8)
