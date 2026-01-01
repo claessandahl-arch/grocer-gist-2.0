@@ -4,10 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, RefreshCw, Trash2, CheckCircle2, AlertCircle, Zap, Brain } from "lucide-react";
+import { Upload, FileText, Loader2, RefreshCw, Trash2, CheckCircle2, AlertCircle, Zap, Brain, FlaskConical } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { categories, categoryNames } from "@/lib/categoryConstants";
+
+type ParserVersion = 'current' | 'experimental' | 'ai_only';
 
 interface ParsedItem {
   name: string;
@@ -24,6 +28,7 @@ interface ParseResult {
   items: ParsedItem[];
   _debug?: {
     method: 'structured_parser' | 'ai_parser';
+    parserVersion?: ParserVersion;
     debugLog?: string[];
     pdfTextLength?: number;
     parsingTime?: number;
@@ -44,6 +49,7 @@ export function ParsingTrainer() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseTime, setParseTime] = useState<number | null>(null);
+  const [parserVersion, setParserVersion] = useState<ParserVersion>('current');
 
   // Initialize PDF.js worker
   useState(() => {
@@ -207,6 +213,7 @@ export function ParsingTrainer() {
           imageUrl,
           pdfUrl,
           originalFilename: uploadedFile.name,
+          parserVersion,
         },
       });
 
@@ -230,7 +237,7 @@ export function ParsingTrainer() {
     } finally {
       setParsing(false);
     }
-  }, [uploadedFile, pdfFile]);
+  }, [uploadedFile, pdfFile, parserVersion]);
 
   const totalParsedAmount = parseResult?.items?.reduce((sum, item) => sum + item.price, 0) || 0;
   const totalDiscount = parseResult?.items?.reduce((sum, item) => sum + (item.discount || 0), 0) || 0;
@@ -249,6 +256,46 @@ export function ParsingTrainer() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Parser Version Selector */}
+          <div className="space-y-2">
+            <Label htmlFor="parser-version" className="text-sm font-medium flex items-center gap-2">
+              <FlaskConical className="h-4 w-4" />
+              Parser-version
+            </Label>
+            <Select value={parserVersion} onValueChange={(v) => setParserVersion(v as ParserVersion)}>
+              <SelectTrigger id="parser-version" className="w-full">
+                <SelectValue placeholder="Välj parser-version" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Produktion</Badge>
+                    <span>Current (Standard)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="experimental">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Experimentell</Badge>
+                    <span>Experimental (med preprocessing)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="ai_only">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">AI Only</Badge>
+                    <span>Endast AI (Gemini)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {parserVersion === 'current' && 'Använder produktionsversionen av den strukturerade parsern.'}
+              {parserVersion === 'experimental' && 'Testar ny parser med förbättrad textbearbetning för ICA-kvitton.'}
+              {parserVersion === 'ai_only' && 'Hoppar över strukturerad parsing och använder endast AI.'}
+            </p>
+          </div>
+
+          <Separator />
+
           {!uploadedFile ? (
             <div
               className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
@@ -359,6 +406,16 @@ export function ParsingTrainer() {
                     </>
                   )}
                 </Badge>
+                {parseResult._debug?.parserVersion && parseResult._debug.parserVersion !== 'current' && (
+                  <Badge variant="outline" className={
+                    parseResult._debug.parserVersion === 'experimental' 
+                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200' 
+                      : 'bg-purple-50 text-purple-700 border-purple-200'
+                  }>
+                    <FlaskConical className="h-3 w-3 mr-1" />
+                    {parseResult._debug.parserVersion === 'experimental' ? 'Experimentell' : 'AI Only'}
+                  </Badge>
+                )}
                 {parseTime && (
                   <Badge variant="outline">
                     {(parseTime / 1000).toFixed(1)}s

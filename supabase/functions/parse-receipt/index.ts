@@ -255,6 +255,35 @@ function parseWillysReceiptText(text: string): { items: ParsedItem[]; store_name
 }
 
 /**
+ * Pre-process ICA receipt text to fix merged fields
+ * 
+ * Problem: PDF text extraction sometimes merges fields without spaces:
+ *   "Gorgonz select 26%2022015800000265,001,00 st49,29"
+ * 
+ * Solution: Insert spaces before article numbers (8-13 digit sequences)
+ *   "Gorgonz select 26% 2022015800000265 ,001,00 st 49,29"
+ * 
+ * This is used by the experimental parser to improve ICA Kvantum parsing.
+ */
+function preprocessICAText(text: string): string {
+  let processed = text;
+  
+  // Insert space before 8-13 digit sequences (article numbers/barcodes)
+  // This handles: "ProductName2022015800000265" → "ProductName 2022015800000265"
+  processed = processed.replace(/([a-zA-ZåäöÅÄÖ%])(\d{8,13})/g, '$1 $2');
+  
+  // Insert space before price patterns at end of merged text
+  // This handles: "st49,29" → "st 49,29"
+  processed = processed.replace(/(st|kg|l|ml|g)(\d+[,.]?\d*)\s*$/gm, '$1 $2');
+  
+  // Insert space after article numbers before quantity
+  // This handles: "2022015800000265,001,00" → "2022015800000265 ,001,00"
+  processed = processed.replace(/(\d{8,13})([,.])/g, '$1 $2');
+  
+  return processed;
+}
+
+/**
  * Parse structured ICA receipt text directly
  * Returns null if parsing fails (fall back to AI)
  */
@@ -593,7 +622,12 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrl, imageUrls, originalFilename, pdfUrl } = await req.json();
+    const { imageUrl, imageUrls, originalFilename, pdfUrl, parserVersion } = await req.json();
+
+    // Parser version for A/B testing (default: 'current')
+    // Supported: 'current' | 'experimental' | 'ai_only'
+    const selectedVersion = parserVersion || 'current';
+    console.log(`🔧 Parser version: ${selectedVersion}`);
 
     // Support both single image (legacy) and multiple images (new)
     const imagesToProcess = imageUrls || (imageUrl ? [imageUrl] : []);
@@ -732,9 +766,10 @@ serve(async (req) => {
     }
 
     // Try structured parsing first if we have raw PDF text
-    if (rawPdfText) {
+    // Skip structured parsing if parserVersion is 'ai_only'
+    if (rawPdfText && selectedVersion !== 'ai_only') {
       console.log('🔍 Trying structured parsing with raw PDF text...');
-      debugLog.push('→ Attempting structured parsing...');
+      debugLog.push(`→ Attempting structured parsing (version: ${selectedVersion})...`);
 
       // Detect store type from PDF text
       const isWillys = rawPdfText.toLowerCase().includes('willys') ||
@@ -743,9 +778,23 @@ serve(async (req) => {
 
       console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : 'ICA'}`);
 
-      const structuredResult = isWillys
-        ? parseWillysReceiptText(rawPdfText)
-        : parseICAReceiptText(rawPdfText);
+      let structuredResult;
+      
+      if (selectedVersion === 'experimental') {
+        // Experimental parser: Pre-process text to fix merged fields
+        debugLog.push('→ Using experimental parser with pre-processing...');
+        const preprocessedText = preprocessICAText(rawPdfText);
+        debugLog.push(`→ Pre-processed text (first 200 chars): ${preprocessedText.substring(0, 200)}`);
+        
+        structuredResult = isWillys
+          ? parseWillysReceiptText(rawPdfText) // Willys doesn't need preprocessing
+          : parseICAReceiptText(preprocessedText);
+      } else {
+        // Current (production) parser
+        structuredResult = isWillys
+          ? parseWillysReceiptText(rawPdfText)
+          : parseICAReceiptText(rawPdfText);
+      }
 
       if (structuredResult && structuredResult.items && structuredResult.items.length > 0) {
         console.log('🎯 Using structured parsing results instead of AI!');
@@ -825,6 +874,7 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
             items: structuredResult.items,
             _debug: {
               method: 'structured_parser',
+              parserVersion: selectedVersion,
               debugLog: debugLog,
               items_found: structuredResult.items.length,
               pdf_text_length: rawPdfText.length
@@ -1328,6 +1378,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     // Add debug info to AI response
     parsedData._debug = {
       method: 'ai_parser',
+      parserVersion: selectedVersion,
       debugLog: debugLog
     };
 
