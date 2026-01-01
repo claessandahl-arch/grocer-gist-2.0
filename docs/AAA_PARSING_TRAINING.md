@@ -2,7 +2,7 @@
 
 **Created:** January 1, 2026  
 **Last Updated:** January 1, 2026  
-**Status:** Phase 1-2 Complete, Phase 3 In Progress  
+**Status:** Phase 1-3 Complete ✅  
 **Goal:** Build an intuitive training tool to achieve perfect ("AAA") receipt parsing
 
 ---
@@ -20,11 +20,11 @@ This document outlines the plan for building a comprehensive receipt parsing tra
 
 ## What's Been Implemented ✅
 
-### PR #8: Parser Versioning (Merged)
+### PR #8: Parser Versioning + Comparison Mode (Merged)
 
 **Edge Function Changes:**
 - Added `parserVersion` parameter to `parse-receipt` edge function
-- Supports: `'current'` | `'experimental'` | `'ai_only'`
+- Supports: `'current'` | `'experimental'` | `'ai_only'` | `'comparison'`
 - Added `preprocessICAText()` function for experimental parser
   - Extended barcode regex from 8-13 → 8-16 digits (ICA Kvantum uses 14-16)
   - Inserts spaces before article numbers to fix merged fields
@@ -39,9 +39,25 @@ This document outlines the plan for building a comprehensive receipt parsing tra
 - Debug log open by default with dark theme for readability
 - Full PDF text shown when structured parsing fails (for debugging)
 
+**Comparison Mode (Phase 3):**
+- Added `'comparison'` parser version that runs BOTH parsers
+- Implemented 4-pass item matching algorithm:
+  1. Exact name + price match
+  2. Fuzzy name match (>70% similarity using trigrams)
+  3. Price match (same price, different name)
+  4. Unmatched items (only in one parser)
+- Returns `ComparisonResult` with diff metrics
+- New `ComparisonView.tsx` component with:
+  - Summary cards (item counts, timing, match rate, price accuracy)
+  - Header comparison table (store, total, date)
+  - Matched items with diff highlighting
+  - Unmatched items sections (structured-only, AI-only)
+  - Debug log viewer
+
 **Files Modified:**
 - `supabase/functions/parse-receipt/index.ts`
 - `src/components/training/ParsingTrainer.tsx`
+- `src/components/training/ComparisonView.tsx` (new)
 
 ### Bug Fixes Applied
 - **RLS Storage Error:** Added user ID to storage path for temp files
@@ -194,9 +210,11 @@ Accessed via: Training page → "Träning på inläsning" tab
 
 ---
 
-### Phase 3: Comparison Mode (AI vs Strukturerad) 🔄 IN PROGRESS
+### Phase 3: Comparison Mode (AI vs Strukturerad) ✅ COMPLETE
 
 **Goal:** Add a "Jämför" option that runs both structured parser AND AI parser in parallel, then displays a diff view showing matches, discrepancies, and missing items.
+
+**Implementation completed January 1, 2026.**
 
 #### A. Edge Function Changes
 
@@ -496,7 +514,7 @@ function preprocessICAText(text: string): string {
 | 2 | Add parser selector dropdown to ParsingTrainer | Low | High | ✅ Done |
 | 3 | Fix RLS storage paths (add userId) | Low | High | ✅ Done |
 | 4 | Fix ICA Kvantum merged field parsing | High | High | ✅ Done |
-| 5 | Add comparison mode (run 2 parsers at once) | Medium | High | 🔄 Next |
+| 5 | Add comparison mode (run 2 parsers at once) | Medium | High | ✅ Done |
 | 6 | Create test case storage table | Low | Medium | Not started |
 | 7 | Build accuracy scoring dashboard | Medium | Medium | Not started |
 | 8 | Fix orphan hash problem | Low | Medium | Not started |
@@ -524,24 +542,27 @@ function preprocessICAText(text: string): string {
 
 ## Progress Tracking
 
-### ✅ Completed (PR #8 - Merged)
+### ✅ Completed (Merged to feature/parser-versioning)
 - [x] Initial ParsingTrainer component (PR #7)
 - [x] Basic upload and parsing functionality
 - [x] Debug log viewer with dark theme + color-coded output
-- [x] Parser versioning in edge function (`current`, `experimental`, `ai_only`)
+- [x] Parser versioning in edge function (`current`, `experimental`, `ai_only`, `comparison`)
 - [x] Parser selector dropdown in Training UI
 - [x] `preprocessICAText()` - Fix merged fields with 8-16 digit regex
 - [x] `parseICAKvantumText()` - Dedicated table-based parser for ICA Kvantum
 - [x] Visual badges showing parser version in results
 - [x] RLS-compliant storage paths (userId prefix)
 - [x] Raw PDF text debug output on parse failure
+- [x] **Comparison mode** - Run both parsers, show diff (Phase 3)
+- [x] `ComparisonView.tsx` - Side-by-side results with match highlighting
+- [x] 4-pass item diff algorithm (exact, fuzzy, price, unmatched)
+- [x] Summary metrics (match rate, price accuracy, timing)
 
-### 🔄 In Progress
-- [ ] Comparison mode (AI vs Structured side-by-side)
-
-### Not Started
+### 🔜 Next Up (Phase 4-6)
 - [ ] Test case library database
 - [ ] Accuracy dashboard
 - [ ] Production transition mechanism
+
+### Known Issues (Lower Priority)
 - [ ] Orphan hash fix
 - [ ] 429 retry logic
