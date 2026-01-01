@@ -489,6 +489,8 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         const discount = Math.abs(parseFloat(discountOnlyMatch[1].replace(',', '.')));
         currentProduct.discount = (currentProduct.discount || 0) + discount;
         currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+        // Clear the expects discount flag now that discount is applied
+        delete (currentProduct as any)._expectsDiscount;
         discountCount++;
         matchedLines++;
         expectingPantValues = false;
@@ -525,7 +527,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       // Lines like "Citroner 3F18" (name continuation, positive or no number)
       const brandOnlyMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ][A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+)$/);
 
-      if (brandOnlyMatch && currentProduct && !line.match(/^Pant$/i)) {
+      if (brandOnlyMatch && currentProduct && !line.match(/^\*?Pant$/i)) {
         const brandText = brandOnlyMatch[1].trim();
         // Don't append if it looks like a header or footer line
         if (brandText.length > 1 && brandText.length < 40 &&
@@ -540,9 +542,9 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         }
       }
 
-      // === PATTERN 5: Standalone "Pant" line ===
-      // Just the word "Pant" - expect values on next line
-      if (line.match(/^Pant$/i)) {
+      // === PATTERN 5: Standalone "Pant" or "*Pant" line ===
+      // Just the word "Pant" (optionally with asterisk) - expect values on next line
+      if (line.match(/^\*?Pant$/i)) {
         // Save current product first
         if (currentProduct) {
           items.push(currentProduct);
