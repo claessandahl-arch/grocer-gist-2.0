@@ -412,30 +412,37 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       const linePreview = line.length > 70 ? line.substring(0, 70) + '...' : line;
 
       // === PATTERN 1: Right-anchored product line (most reliable) ===
-      // The end of the line is reliable: "... st total"
+      // The end of the line is reliable: "... st total" or "... kg total"
       // But the quantity field is merged garbage like ",951,00" (,95 from price + 1,00 qty)
       // Strategy: Match the reliable parts, extract quantity from the junk
 
-      // First, check if line ends with " st [number]"
-      const productEndMatch = line.match(/^(.+?)\s+st\s+(\d+[,.]\d+)$/);
+      // First, check if line ends with " st [number]" or " kg [number]"
+      const productEndMatch = line.match(/^(.+?)\s+(st|kg)\s+(\d+[,.]\d+)$/);
 
       if (productEndMatch) {
-        const beforeSt = productEndMatch[1].trim();
-        const total = parseFloat(productEndMatch[2].replace(',', '.'));
+        const beforeUnit = productEndMatch[1].trim();
+        const unit = productEndMatch[2]; // 'st' or 'kg'
+        const total = parseFloat(productEndMatch[3].replace(',', '.'));
 
         // Check if line starts with discount marker
-        const hasDiscountMarker = beforeSt.startsWith('*');
-        const rawContent = hasDiscountMarker ? beforeSt.slice(1).trim() : beforeSt;
+        const hasDiscountMarker = beforeUnit.startsWith('*');
+        const rawContent = hasDiscountMarker ? beforeUnit.slice(1).trim() : beforeUnit;
 
-        // Try to extract quantity from the garbage before "st"
-        // Pattern: ",951,00" means qty=1, ",952,00" means qty=2, ",004,00" means qty=4
-        // The quantity is the digit(s) just before the final ",00" or ",\d\d"
+        // Try to extract quantity from the garbage before unit
+        // For st: ",951,00" means qty=1, ",952,00" means qty=2
+        // For kg: ",002,91" means qty=2.91 kg
         let quantity = 1; // default
-        const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
+        const qtyMatch = rawContent.match(/[,.](\d+)[,.](\d+)$/);
         if (qtyMatch) {
-          const extractedQty = parseFloat(qtyMatch[1]);
-          if (extractedQty > 0 && extractedQty < 100) { // sanity check
-            quantity = extractedQty;
+          if (unit === 'kg') {
+            // For kg, quantity is like 2,91 -> 2.91
+            quantity = parseFloat(`${qtyMatch[1]}.${qtyMatch[2]}`);
+          } else {
+            // For st, quantity is just the integer before the decimals
+            const extractedQty = parseInt(qtyMatch[1]);
+            if (extractedQty > 0 && extractedQty < 100) { // sanity check
+              quantity = extractedQty;
+            }
           }
         }
 
@@ -477,7 +484,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         matchedLines++;
         expectingPantValues = false;
         debugLog.push(`  Line ${i}: "${linePreview}"`);
-        debugLog.push(`    ✓ Product: "${name}" · qty=${quantity} · ${total} kr${hasDiscountMarker ? ' [*expects discount]' : ''}`);
+        debugLog.push(`    ✓ Product: "${name}" · qty=${quantity}${unit === 'kg' ? ' kg' : ''} · ${total} kr${hasDiscountMarker ? ' [*expects discount]' : ''}`);
         continue;
       }
 

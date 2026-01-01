@@ -472,7 +472,7 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 | 2 | Discount-only | `-40,80` |
 | 3 | Brand + Discount | `OLW 4F89 -40,80` |
 | 4 | Brand continuation | `Citroner 3F18` |
-| 5 | Pant header | `Pant` (alone) |
+| 5 | Pant header (with optional `*`) | `Pant` or `*Pant` |
 | 6 | Pant values | `2,0024,00` (merged) |
 | 7 | Full Pant line | `Pant 2,00 2 4,00` |
 | 8 | Orphan Pant values | `1,0011,00` (no header detected) |
@@ -485,15 +485,20 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 
 #### Results
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Products Found | 37 → 4 | **43** | ✅ Matches AI |
-| Match Rate | 76.7% → 9.3% | **100%** | ✅ Perfect |
-| Parse Time | — | **2ms** | vs AI 19,000ms |
-| Discounts | 0 | **4** | ✅ Working |
-| Pant Items | 0 | **4** | ✅ Working |
-| Lines Skipped | 47 | **0** | ✅ All parsed |
-| Total Amount | — | **1735.79 kr** | ✅ Matches AI |
+**Test 1 (ICA Kvantum Kungens Kurva - 2025-12-29):**
+| Metric | Before | After |
+|--------|--------|-------|
+| Products Found | 37 → 4 | **43/43** |
+| Match Rate | 76.7% → 9.3% | **100%** |
+| Parse Time | — | **2ms** |
+
+**Test 2 (ICA Kvantum Kungens Kurva - 2025-12-30):**
+| Metric | Before | After |
+|--------|--------|-------|
+| Products Found | 30 | **32/32** |
+| Match Rate | 93.8% | **100%** |
+| Parse Time | — | **1ms** |
+| Lines Skipped | 4 | **0** |
 
 #### Commits
 
@@ -501,12 +506,19 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 2. `fix: ICA Kvantum parser with right-anchored strategy`
 3. `fix: Handle comma-prefixed quantity field in ICA Kvantum parser`
 4. `fix: Add orphan Pant values detection (Pattern 8)`
+5. `fix: Handle *Pant format (asterisk prefix on Pant lines)`
 
 #### Known Limitations
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
-2. **Some Pant headers not detected** - When the "Pant" header line doesn't match (unknown cause), Pattern 8 catches the orphan values by detecting the characteristic format (e.g., `1,0011,00`).
+2. **Weight-based products (kg)** - Products sold by weight use `kg` instead of `st`. Current pattern only matches `st` unit.
+   - Example: `Julskinka rimmad ... 2,91 kg 320,10` is skipped
+   - **Future fix:** Add pattern for `kg` unit with weight extraction
+
+3. **Receipt-level coupons** - Coupons like "Värdekupong 10%" at the end of the receipt are incorrectly treated as name continuations for the previous product.
+   - Example: "Ägg 12-p Rosa L" gets corrupted to "Ägg 12-p Rosa L Värdekupong 10%" with -353.52 kr discount
+   - **Future fix:** Detect "Värdekupong", "Kupong", "Rabatt" lines as separate discount items
 
 ---
 
