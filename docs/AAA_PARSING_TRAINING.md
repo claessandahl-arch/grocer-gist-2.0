@@ -475,6 +475,7 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 | 5 | Pant header | `Pant` (alone) |
 | 6 | Pant values | `2,0024,00` (merged) |
 | 7 | Full Pant line | `Pant 2,00 2 4,00` |
+| 8 | Orphan Pant values | `1,0011,00` (no header detected) |
 
 **Extended character support:**
 ```typescript
@@ -499,10 +500,13 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 1. `feat: Enhanced parser debug logging and ICA Kvantum multi-line support`
 2. `fix: ICA Kvantum parser with right-anchored strategy`
 3. `fix: Handle comma-prefixed quantity field in ICA Kvantum parser`
+4. `fix: Add orphan Pant values detection (Pattern 8)`
 
-#### Known Limitation
+#### Known Limitations
 
-Multi-buy bundle discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
+1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
+
+2. **Some Pant headers not detected** - When the "Pant" header line doesn't match (unknown cause), Pattern 8 catches the orphan values by detecting the characteristic format (e.g., `1,0011,00`).
 
 ---
 
