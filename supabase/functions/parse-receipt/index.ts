@@ -404,40 +404,35 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
     debugLog.push('');
     debugLog.push('--- LINE-BY-LINE PROCESSING ---');
 
+    // State for Pant tracking (Pant can be split across 2 lines)
+    let expectingPantValues = false;
+
     for (let i = startIdx; i < endIdx; i++) {
       const line = lines[i];
       const linePreview = line.length > 70 ? line.substring(0, 70) + '...' : line;
 
-      // Pattern 1: Full product line with article number
-      // "*ProductName 1234567890123 21,91 1,00 st 31,95"
-      // Matches: name, article#, unit_price, quantity, unit, total
-      const productMatch = line.match(/^(\*?)([A-Za-zåäöÅÄÖ\s\-&%\d]+?)\s+(\d{10,16})\s+([\d,]+)\s*([\d,]+)\s*st\s+([\d,]+)$/);
+      // === PATTERN 1: Right-anchored product line (most reliable) ===
+      // Matches: "anything quantity st total" from the right side
+      // This handles merged article numbers by not relying on them
+      // Extended chars: \p{L} for any Unicode letter, or expanded class with éèüûôîâêëï
+      const rightAnchoredMatch = line.match(/^(\*?)(.+?)\s+(\d+[,.]\d+)\s*st\s+(\d+[,.]\d+)$/);
 
-      // Pattern 2: Simpler product line (preprocessed text)
-      // "ProductName 1234567890123 ,001,00 st 31,95"
-      const simpleProductMatch = !productMatch ?
-        line.match(/^(\*?)([A-Za-zåäöÅÄÖ\s\-&%\d]+?)\s+(\d{10,16})\s+[,.]?\d*[,.]?\d*\s*([\d,]+)\s*st\s+([\d,]+)$/) : null;
+      if (rightAnchoredMatch) {
+        const hasDiscountMarker = rightAnchoredMatch[1] === '*';
+        const rawName = rightAnchoredMatch[2].trim();
+        const quantity = parseFloat(rightAnchoredMatch[3].replace(',', '.'));
+        const total = parseFloat(rightAnchoredMatch[4].replace(',', '.'));
 
-      // Pattern 3: Discount/continuation line (text + negative or positive number at end)
-      // "OLW 4F89                                             -40,80"
-      // "Chokladkaka 2F60                                     -3,90"
-      const continuationMatch = line.match(/^([A-Za-zåäöÅÄÖ\s\d\-&%]+?)\s+(-?\d+[,.]\d+)$/);
+        // Extract clean product name (remove article number if embedded)
+        // Article numbers are 10-16 digit sequences, possibly merged with price digits
+        let name = rawName;
+        const articleMatch = rawName.match(/^(.+?)\s*\d{10,}/);
+        if (articleMatch) {
+          name = articleMatch[1].trim();
+        }
 
-      // Pattern 4: Standalone Pant line
-      // "Pant                              2,00         2        4,00"
-      const pantMatch = line.match(/^Pant\s+([\d,]+)\s+(\d+)\s+([\d,]+)$/);
-
-      // Pattern 5: Simple Pant line (just Pant + price)
-      // "Pant                                                  4,00"
-      const simplePantMatch = !pantMatch ? line.match(/^Pant\s+([\d,]+)$/) : null;
-
-      if (productMatch || simpleProductMatch) {
-        const match = productMatch || simpleProductMatch!;
-        const hasDiscountMarker = match[1] === '*';
-        const name = match[2].trim();
-        const articleNumber = match[3];
-        const quantity = productMatch ? parseFloat(match[5].replace(',', '.')) : parseFloat(match[4].replace(',', '.'));
-        const total = productMatch ? parseFloat(match[6].replace(',', '.')) : parseFloat(match[5].replace(',', '.'));
+        // Remove any leading asterisk that got into the name
+        name = name.replace(/^\*\s*/, '');
 
         // Save previous product if exists
         if (currentProduct) {
@@ -446,7 +441,6 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
         currentProduct = {
           name,
-          article_number: articleNumber,
           price: total,
           quantity,
           category: 'other'
@@ -458,54 +452,145 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         }
 
         matchedLines++;
+        expectingPantValues = false;
         debugLog.push(`  Line ${i}: "${linePreview}"`);
         debugLog.push(`    ✓ Product: "${name}" · qty=${quantity} · ${total} kr${hasDiscountMarker ? ' [*expects discount]' : ''}`);
+        continue;
+      }
 
-      } else if (continuationMatch && currentProduct) {
-        const textPart = continuationMatch[1].trim();
-        const value = parseFloat(continuationMatch[2].replace(',', '.'));
+      // === PATTERN 2: Discount-only line (just a negative number) ===
+      // This is for lines like "-40,80" with no text
+      const discountOnlyMatch = line.match(/^(-\d+[,.]\d+)$/);
 
-        debugLog.push(`  Line ${i}: "${linePreview}"`);
-
-        if (value < 0) {
-          // It's a discount line - apply to current product
-          const discount = Math.abs(value);
-          currentProduct.discount = (currentProduct.discount || 0) + discount;
-          currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
-          discountCount++;
-
-          // Also append brand name if present and not numeric
-          if (textPart && !textPart.match(/^\d/) && textPart.length > 1) {
-            currentProduct.name += ' ' + textPart;
-            multilineCount++;
-            debugLog.push(`    💰 Discount + brand: "${textPart}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
-          } else {
-            debugLog.push(`    💰 Discount: -${discount} kr → price now ${currentProduct.price} kr`);
-          }
-        } else {
-          // It's a name continuation or a price (not negative)
-          if (textPart && !textPart.match(/^\d+[,.]?\d*$/)) {
-            currentProduct.name += ' ' + textPart;
-            multilineCount++;
-            debugLog.push(`    📝 Name continuation: "${textPart}" → "${currentProduct.name}"`);
-          } else {
-            debugLog.push(`    ⏭️ Skipped (numeric continuation without product context)`);
-            skippedLines++;
-          }
-        }
+      if (discountOnlyMatch && currentProduct) {
+        const discount = Math.abs(parseFloat(discountOnlyMatch[1].replace(',', '.')));
+        currentProduct.discount = (currentProduct.discount || 0) + discount;
+        currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+        discountCount++;
         matchedLines++;
+        expectingPantValues = false;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    💰 Discount-only: -${discount} kr → price now ${currentProduct.price} kr`);
+        continue;
+      }
 
-      } else if (pantMatch || simplePantMatch) {
+      // === PATTERN 3: Brand/continuation + discount line ===
+      // Lines like "OLW 4F89 -40,80" or "Chokladkaka 2F60 -3,90"
+      const brandDiscountMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+?)\s+(-\d+[,.]\d+)$/);
+
+      if (brandDiscountMatch && currentProduct) {
+        const brandText = brandDiscountMatch[1].trim();
+        const discount = Math.abs(parseFloat(brandDiscountMatch[2].replace(',', '.')));
+
+        // Append brand name if it's not just numbers
+        if (brandText && !brandText.match(/^\d+[,.]?\d*$/)) {
+          currentProduct.name += ' ' + brandText;
+          multilineCount++;
+        }
+
+        currentProduct.discount = (currentProduct.discount || 0) + discount;
+        currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+        discountCount++;
+        matchedLines++;
+        expectingPantValues = false;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    💰 Brand + Discount: "${brandText}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
+        continue;
+      }
+
+      // === PATTERN 4: Brand/continuation without discount ===
+      // Lines like "Citroner 3F18" (name continuation, positive or no number)
+      const brandOnlyMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ][A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+)$/);
+
+      if (brandOnlyMatch && currentProduct && !line.match(/^Pant$/i)) {
+        const brandText = brandOnlyMatch[1].trim();
+        // Don't append if it looks like a header or footer line
+        if (brandText.length > 1 && brandText.length < 40 &&
+          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat)/i)) {
+          currentProduct.name += ' ' + brandText;
+          multilineCount++;
+          matchedLines++;
+          expectingPantValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    📝 Name continuation: "${brandText}" → "${currentProduct.name}"`);
+          continue;
+        }
+      }
+
+      // === PATTERN 5: Standalone "Pant" line ===
+      // Just the word "Pant" - expect values on next line
+      if (line.match(/^Pant$/i)) {
         // Save current product first
         if (currentProduct) {
           items.push(currentProduct);
           currentProduct = null;
         }
+        expectingPantValues = true;
+        matchedLines++;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    🍾 Pant header detected - expecting values on next line`);
+        continue;
+      }
 
-        const pantTotal = pantMatch ?
-          parseFloat(pantMatch[3].replace(',', '.')) :
-          parseFloat(simplePantMatch![1].replace(',', '.'));
-        const pantQty = pantMatch ? parseInt(pantMatch[2]) : 1;
+      // === PATTERN 6: Pant values on follow-up line ===
+      // Merged format like "2,0024,00" = "2,00 2 4,00" (unit price, qty, total)
+      // Or simpler patterns
+      if (expectingPantValues) {
+        // Try to parse merged Pant values: "2,0024,00" or "1,0011,00"
+        const pantValuesMatch = line.match(/^(\d+[,.]\d+)(\d)(\d+[,.]\d+)$/);
+        if (pantValuesMatch) {
+          const pantUnitPrice = parseFloat(pantValuesMatch[1].replace(',', '.'));
+          const pantQty = parseInt(pantValuesMatch[2]);
+          const pantTotal = parseFloat(pantValuesMatch[3].replace(',', '.'));
+
+          items.push({
+            name: 'Pant',
+            price: pantTotal,
+            quantity: pantQty,
+            category: 'pant'
+          });
+
+          pantCount++;
+          matchedLines++;
+          expectingPantValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    🍾 Pant values: ${pantQty}x ${pantUnitPrice} kr = ${pantTotal} kr`);
+          continue;
+        }
+
+        // Try simpler pattern: just a price
+        const simplePantMatch = line.match(/^(\d+[,.]\d+)$/);
+        if (simplePantMatch) {
+          const pantTotal = parseFloat(simplePantMatch[1].replace(',', '.'));
+          items.push({
+            name: 'Pant',
+            price: pantTotal,
+            quantity: 1,
+            category: 'pant'
+          });
+          pantCount++;
+          matchedLines++;
+          expectingPantValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    🍾 Pant (simple): ${pantTotal} kr`);
+          continue;
+        }
+
+        // Couldn't parse Pant values, reset state
+        expectingPantValues = false;
+      }
+
+      // === PATTERN 7: Full Pant line with all values ===
+      // "Pant 2,00 2 4,00"
+      const fullPantMatch = line.match(/^Pant\s+([\d,]+)\s+(\d+)\s+([\d,]+)$/);
+      if (fullPantMatch) {
+        if (currentProduct) {
+          items.push(currentProduct);
+          currentProduct = null;
+        }
+
+        const pantTotal = parseFloat(fullPantMatch[3].replace(',', '.'));
+        const pantQty = parseInt(fullPantMatch[2]);
 
         items.push({
           name: 'Pant',
@@ -518,28 +603,17 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         matchedLines++;
         debugLog.push(`  Line ${i}: "${linePreview}"`);
         debugLog.push(`    🍾 Pant: ${pantQty}x = ${pantTotal} kr`);
+        continue;
+      }
 
-      } else {
-        // Check if this might be a standalone continuation (no match but has text)
-        if (currentProduct && line.length > 2 && !line.match(/^\d/) && !line.includes('Moms') && !line.includes('Totalt')) {
-          // Might be a pure name continuation
-          const possibleName = line.replace(/\s+/g, ' ').trim();
-          if (possibleName.length > 1 && possibleName.length < 50) {
-            currentProduct.name += ' ' + possibleName;
-            multilineCount++;
-            matchedLines++;
-            debugLog.push(`  Line ${i}: "${linePreview}"`);
-            debugLog.push(`    📝 Name continuation (fallback): → "${currentProduct.name}"`);
-            continue;
-          }
-        }
+      // === NO MATCH ===
+      skippedLines++;
+      expectingPantValues = false;
 
-        skippedLines++;
-        // Only log skipped lines if they look like they might be products
-        if (line.length > 5 && !line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
-          debugLog.push(`  Line ${i}: "${linePreview}"`);
-          debugLog.push(`    ⏭️ Skipped (no pattern match)`);
-        }
+      // Only log skipped lines if they look like they might be products
+      if (line.length > 5 && !line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    ⏭️ Skipped (no pattern match)`);
       }
     }
 
