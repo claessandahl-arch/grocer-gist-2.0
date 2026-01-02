@@ -1371,6 +1371,7 @@ serve(async (req) => {
     console.log(`🔧 Parser version: ${selectedVersion}`);
 
     const isComparisonMode = selectedVersion === 'comparison';
+    const isStructuredOnly = selectedVersion === 'structured-only';
 
     // Support both single image (legacy) and multiple images (new)
     const imagesToProcess = imageUrls || (imageUrl ? [imageUrl] : []);
@@ -1537,7 +1538,7 @@ serve(async (req) => {
       debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICATableFormat ? 'ICA Table Format' : 'ICA'}`);
 
       // For comparison mode, always use experimental parser
-      if (selectedVersion === 'experimental' || isComparisonMode) {
+      if (selectedVersion === 'experimental' || isComparisonMode || isStructuredOnly) {
         // Experimental parser: Pre-process text to fix merged fields
         debugLog.push('→ Using experimental parser with pre-processing...');
         const preprocessedText = preprocessICAText(rawPdfText);
@@ -1669,12 +1670,30 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
     }
 
     // Log structured parsing result for comparison mode
-    if (isComparisonMode) {
+    if (isComparisonMode || isStructuredOnly) {
       if (structuredResult && structuredResult.items.length > 0) {
         debugLog.push(`✓ Structured parsing: ${structuredResult.items.length} items (${structuredTiming}ms)`);
       } else {
         debugLog.push(`✗ Structured parsing: 0 items (${structuredTiming}ms)`);
       }
+    }
+
+    // For structured-only mode, return immediately without AI fallback
+    if (isStructuredOnly) {
+      debugLog.push('→ Structured-only mode: Skipping AI parser');
+      const itemsCount = structuredResult?.items?.length || 0;
+      return new Response(
+        JSON.stringify({
+          items: structuredResult?.items || [],
+          store_name: structuredResult?.store_name || 'Unknown',
+          total_amount: structuredResult?.total_amount || null,
+          receipt_date: structuredResult?.receipt_date || null,
+          parserVersion: 'structured-only',
+          structured_items_count: itemsCount,
+          debug_log: debugLog.join('\n'),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('⚠️ Structured parsing not available, falling back to AI...');

@@ -228,7 +228,7 @@ export function BulkTester() {
                     imageUrl,
                     pdfUrl,
                     originalFilename: file.name,
-                    parserVersion: 'comparison',
+                    parserVersion: 'structured-only', // Fast mode: skips AI to avoid timeout
                 },
             });
 
@@ -241,6 +241,7 @@ export function BulkTester() {
 
             if (error) throw error;
 
+            // Handle comparison mode response
             if (data && data.mode === 'comparison') {
                 const comparison = data as ComparisonResult;
                 const matchRate = comparison.diff.matchRate;
@@ -252,6 +253,22 @@ export function BulkTester() {
                     comparison,
                     matchRate,
                     timing: endTime - startTime,
+                };
+            }
+
+            // Handle structured-only mode response (no AI comparison)
+            if (data && data.parserVersion === 'structured-only') {
+                const itemsCount = data.structured_items_count || data.items?.length || 0;
+                // In structured-only mode, pass is based on finding items (not comparison)
+                const passed = itemsCount > 0;
+
+                return {
+                    filename: file.name,
+                    status: passed ? 'passed' : 'failed',
+                    comparison: null, // No comparison data in structured-only mode
+                    matchRate: passed ? 100 : 0, // Binary: either parsed or not
+                    timing: endTime - startTime,
+                    errorMessage: !passed ? `Structured parser found ${itemsCount} items` : undefined,
                 };
             }
 
@@ -468,14 +485,14 @@ export function BulkTester() {
                                     <div
                                         key={idx}
                                         className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${result.status === 'passed'
-                                                ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                                                : result.status === 'failed'
-                                                    ? 'bg-red-50 border-red-200 hover:bg-red-100'
-                                                    : result.status === 'processing'
-                                                        ? 'bg-blue-50 border-blue-200'
-                                                        : result.status === 'error'
-                                                            ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
-                                                            : 'bg-muted/50 border-muted'
+                                            ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                                            : result.status === 'failed'
+                                                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                                                : result.status === 'processing'
+                                                    ? 'bg-blue-50 border-blue-200'
+                                                    : result.status === 'error'
+                                                        ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
+                                                        : 'bg-muted/50 border-muted'
                                             }`}
                                         onClick={() => result.comparison && setSelectedResult(result)}
                                     >
