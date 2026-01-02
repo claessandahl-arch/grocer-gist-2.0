@@ -26,13 +26,19 @@
 - [ ] Remove console.log statements from `ProductManagement.tsx`
 - [ ] Add TypeScript types for database views (currently using `any`)
 
-### Structured Parsing Investigation
+### Structured Parsing (January 2026)
 
-- [ ] **Fix ICA Kvantum structured parser** - PDF text extraction merges fields without spaces, causing regex patterns to fail. Currently falling back to AI parser.
-- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes on 429 errors.
-- [ ] **Add retry logic for rate limits** - Exponential backoff for Gemini 429 errors.
+- [x] **ICA Kvantum structured parser** - Fixed! Now supports ICA Kvantum, Nära, Maxi, Supermarket with 94% pass rate
+- [x] **Pantretur validation logging** - Added warning when math doesn't match (PR #18)
+- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes on 429 errors
+- [ ] **Add retry logic for rate limits** - Exponential backoff for Gemini 429 errors
 
-**📋 Detailed investigation report**: See [`Docs/STRUCTURED_PARSING_INVESTIGATION.md`](Docs/STRUCTURED_PARSING_INVESTIGATION.md)
+**Known parser limitations** (documented, won't fix):
+- Bundle discounts can result in negative item prices (totals correct)
+- Bundle offer names (e.g. "4F25") may append to product names
+- Some Pantretur totals don't match unit × qty
+
+**📋 Full details**: See [`docs/AAA_PARSING_TRAINING.md`](docs/AAA_PARSING_TRAINING.md)
 
 ### Optional Enhancements
 
