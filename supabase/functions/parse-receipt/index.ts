@@ -580,9 +580,9 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
       if (brandOnlyMatch && currentProduct && !line.match(/^\*?Pant$/i)) {
         const brandText = brandOnlyMatch[1].trim();
-        // Don't append if it looks like a header, footer, or coupon line
+        // Don't append if it looks like a header, footer, coupon, or Pantretur line
         if (brandText.length > 1 && brandText.length < 40 &&
-          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat|Värdekupong|Kupong|Rabatt|Värdecheck|Bonus)/i)) {
+          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat|Värdekupong|Kupong|Rabatt|Värdecheck|Bonus|Pantretur)/i)) {
           currentProduct.name += ' ' + brandText;
           multilineCount++;
           matchedLines++;
@@ -613,8 +613,9 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       // Or "8,00216,00" = "8,00 2 16,00"
       if (expectingPantValues) {
         // Try to parse merged Pant values with exact 2-decimal pattern
-        // Pattern: unitPrice(X,XX) + qty(N+) + total(XX,XX)
-        const pantValuesMatch = line.match(/^(\d+,\d{2})(\d+)(\d+,\d{2})$/);
+        // Pattern: unitPrice(X,XX) + qty(1-2 digits) + total(XX+,XX)
+        // Fixed: qty is 1-2 digits, total has 2+ digits before comma to prevent greedy matching
+        const pantValuesMatch = line.match(/^(\d+,\d{2})(\d{1,2})(\d{2,},\d{2})$/);
         if (pantValuesMatch) {
           const pantUnitPrice = parseFloat(pantValuesMatch[1].replace(',', '.'));
           const pantQty = parseInt(pantValuesMatch[2]);
