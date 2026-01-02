@@ -468,10 +468,11 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 
 | # | Pattern | Example |
 |---|---------|---------|
-| 1 | Right-anchored product | `Bananschalottenlök ... st 21,95` |
+| 1 | Right-anchored product (`st`/`kg`) | `Bananschalottenlök ... st 21,95` |
 | 2 | Discount-only | `-40,80` |
 | 3 | Brand + Discount | `OLW 4F89 -40,80` |
 | 4 | Brand continuation | `Citroner 3F18` |
+| 4a | Receipt coupon | `Värdekupong 10%`, `Kupong`, `Rabatt` |
 | 5 | Pant header (with optional `*`) | `Pant` or `*Pant` |
 | 6 | Pant values | `2,0024,00` (merged) |
 | 7 | Full Pant line | `Pant 2,00 2 4,00` |

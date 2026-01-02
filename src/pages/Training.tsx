@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ParsingTrainer } from "@/components/training/ParsingTrainer";
+import { BulkTester } from "@/components/training/BulkTester";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -477,6 +478,7 @@ export default function Training() {
           <TabsList>
             <TabsTrigger value="receipts">Importerade kvitton</TabsTrigger>
             <TabsTrigger value="parsing-training">Träning på inläsning</TabsTrigger>
+            <TabsTrigger value="bulk-test">Bulk-test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="receipts" className="space-y-0">
@@ -749,6 +751,10 @@ export default function Training() {
 
           <TabsContent value="parsing-training">
             <ParsingTrainer />
+          </TabsContent>
+
+          <TabsContent value="bulk-test">
+            <BulkTester />
           </TabsContent>
         </Tabs>
 
