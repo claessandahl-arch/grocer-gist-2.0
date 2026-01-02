@@ -748,8 +748,15 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         // Try to parse Pantretur values: "23,001-23,00" (unitPrice, qty, negative total)
         const pantreturMatch = line.match(/^(\d+,\d{2})(\d+)(-\d+,\d{2})$/);
         if (pantreturMatch) {
+          const pantreturUnitPrice = parseFloat(pantreturMatch[1].replace(',', '.'));
           const pantreturQty = parseInt(pantreturMatch[2]);
           const pantreturTotal = parseFloat(pantreturMatch[3].replace(',', '.'));
+
+          // Validation: check if math adds up (non-breaking, just logs warning)
+          const expectedTotal = -(pantreturUnitPrice * pantreturQty);
+          if (Math.abs(expectedTotal - pantreturTotal) > 0.10) {
+            debugLog.push(`  ⚠️ Pantretur math: ${pantreturUnitPrice} × ${pantreturQty} = ${expectedTotal}, but got ${pantreturTotal}`);
+          }
 
           items.push({
             name: 'Pantretur',
