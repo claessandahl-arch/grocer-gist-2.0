@@ -359,11 +359,20 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
     let discountCount = 0;
     let pantCount = 0;
 
-    // Find store name
-    let storeName = 'ICA Kvantum';
-    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tangent|Tel|\d)/i);
-    if (storeMatch) {
-      storeName = `ICA Kvantum ${storeMatch[1].trim()}`;
+    // Find store name (supports Kvantum, Nära, Maxi, Supermarket)
+    let storeName = 'ICA';
+    const storePatterns = [
+      { regex: /ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tangent|Tel|\d)/i, prefix: 'ICA Kvantum' },
+      { regex: /ICA\s+Nära\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Svart|Tel|\d)/i, prefix: 'ICA Nära' },
+      { regex: /Maxi\s+ICA\s+(?:Stormarknad\s+)?([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Afrod|Tel|\d)/i, prefix: 'Maxi ICA' },
+      { regex: /ICA\s+Supermarket\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tel|\d)/i, prefix: 'ICA Supermarket' },
+    ];
+    for (const { regex, prefix } of storePatterns) {
+      const match = text.match(regex);
+      if (match) {
+        storeName = `${prefix} ${match[1].trim()}`;
+        break;
+      }
     }
     debugLog.push(`  🏪 Store: ${storeName}`);
 
@@ -1516,12 +1525,16 @@ serve(async (req) => {
         rawPdfText.toLowerCase().includes('willy') ||
         rawPdfText.includes('Självscanning');
 
-      // Detect ICA Kvantum specifically (has table format with "Beskrivning" header)
-      const isICAKvantum = rawPdfText.includes('Kvantum') &&
+      // Detect ICA table format receipts (Kvantum, Nära, Maxi - all use same table format)
+      // Key indicator: has "Beskrivning" column header
+      const isICATableFormat = (rawPdfText.includes('Kvantum') ||
+        rawPdfText.includes('Nära') ||
+        rawPdfText.includes('Maxi ICA') ||
+        rawPdfText.includes('ICA Supermarket')) &&
         (rawPdfText.includes('BeskrivningArtikelnummer') || rawPdfText.includes('Beskrivning'));
 
-      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
-      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
+      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICATableFormat ? 'ICA Table Format' : 'ICA'}`);
+      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICATableFormat ? 'ICA Table Format' : 'ICA'}`);
 
       // For comparison mode, always use experimental parser
       if (selectedVersion === 'experimental' || isComparisonMode) {
@@ -1532,7 +1545,7 @@ serve(async (req) => {
 
         if (isWillys) {
           structuredResult = parseWillysReceiptText(rawPdfText, debugLog);
-        } else if (isICAKvantum) {
+        } else if (isICATableFormat) {
           // Try ICA Kvantum parser first (table format)
           debugLog.push('→ Trying ICA Kvantum table parser...');
           structuredResult = parseICAKvantumText(preprocessedText, debugLog);
