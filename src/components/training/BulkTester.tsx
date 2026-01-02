@@ -272,7 +272,7 @@ export function BulkTester() {
                 };
             }
 
-            throw new Error('Unexpected response format');
+            throw new Error(`Unexpected response format. Got: ${JSON.stringify(data ? Object.keys(data) : 'null')}`);
         } catch (error: any) {
             return {
                 filename: file.name,

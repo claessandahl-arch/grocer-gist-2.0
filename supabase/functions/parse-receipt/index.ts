@@ -1566,8 +1566,8 @@ serve(async (req) => {
 
       structuredTiming = Date.now() - structuredStart;
 
-      // For non-comparison mode, return structured results if successful
-      if (!isComparisonMode && structuredResult && structuredResult.items && structuredResult.items.length > 0) {
+      // For non-comparison mode (excluding structured-only which has its own return), return structured results
+      if (!isComparisonMode && !isStructuredOnly && structuredResult && structuredResult.items && structuredResult.items.length > 0) {
         console.log('🎯 Using structured parsing results instead of AI!');
         debugLog.push(`✓ Structured parsing succeeded: ${structuredResult.items.length} items`);
 
