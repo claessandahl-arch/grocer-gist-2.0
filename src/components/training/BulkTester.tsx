@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2 } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { ComparisonView } from "./ComparisonView";
 
@@ -82,6 +82,7 @@ export function BulkTester() {
     const [processing, setProcessing] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedResult, setSelectedResult] = useState<BulkTestResult | null>(null);
+    const [fastMode, setFastMode] = useState(true); // Fast mode skips AI for speed
 
     // Initialize PDF.js worker
     useState(() => {
@@ -228,7 +229,7 @@ export function BulkTester() {
                     imageUrl,
                     pdfUrl,
                     originalFilename: file.name,
-                    parserVersion: 'structured-only', // Fast mode: skips AI to avoid timeout
+                    parserVersion: fastMode ? 'structured-only' : 'comparison',
                 },
             });
 
@@ -403,6 +404,32 @@ export function BulkTester() {
                                     <Progress value={progress} className="h-2" />
                                 </div>
                             )}
+
+                            {/* Fast mode toggle */}
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                                <div className="flex items-center gap-2">
+                                    <Zap className={`h-4 w-4 ${fastMode ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                                    <div>
+                                        <div className="font-medium text-sm">
+                                            {fastMode ? 'Snabbläge' : 'Jämförelseläge'}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {fastMode
+                                                ? 'Endast strukturerad parser (2-10ms per kvitto)'
+                                                : 'Jämför mot AI (20-30s per kvitto, risk för timeout)'
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant={fastMode ? "secondary" : "outline"}
+                                    size="sm"
+                                    onClick={() => setFastMode(!fastMode)}
+                                    disabled={processing}
+                                >
+                                    {fastMode ? 'Aktivera AI-jämförelse' : 'Aktivera snabbläge'}
+                                </Button>
+                            </div>
 
                             {/* Actions */}
                             <div className="flex gap-2">
