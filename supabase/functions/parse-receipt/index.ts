@@ -613,9 +613,9 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       // Or "8,00216,00" = "8,00 2 16,00"
       if (expectingPantValues) {
         // Try to parse merged Pant values with exact 2-decimal pattern
-        // Pattern: unitPrice(X,XX) + qty(1-2 digits) + total(XX+,XX)
-        // Fixed: qty is 1-2 digits, total has 2+ digits before comma to prevent greedy matching
-        const pantValuesMatch = line.match(/^(\d+,\d{2})(\d{1,2})(\d{2,},\d{2})$/);
+        // Pattern: unitPrice(X,XX) + qty(exactly 1 digit) + total(X+,XX)
+        // Qty is always 1-9 for Pant (single digit), which prevents greedy matching issues
+        const pantValuesMatch = line.match(/^(\d+,\d{2})(\d)(\d+,\d{2})$/);
         if (pantValuesMatch) {
           const pantUnitPrice = parseFloat(pantValuesMatch[1].replace(',', '.'));
           const pantQty = parseInt(pantValuesMatch[2]);
