@@ -359,11 +359,20 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
     let discountCount = 0;
     let pantCount = 0;
 
-    // Find store name
-    let storeName = 'ICA Kvantum';
-    const storeMatch = text.match(/ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tangent|Tel|\d)/i);
-    if (storeMatch) {
-      storeName = `ICA Kvantum ${storeMatch[1].trim()}`;
+    // Find store name (supports Kvantum, Nära, Maxi, Supermarket)
+    let storeName = 'ICA';
+    const storePatterns = [
+      { regex: /ICA\s+Kvantum\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tangent|Tel|\d)/i, prefix: 'ICA Kvantum' },
+      { regex: /ICA\s+Nära\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Svart|Tel|\d)/i, prefix: 'ICA Nära' },
+      { regex: /Maxi\s+ICA\s+(?:Stormarknad\s+)?([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Afrod|Tel|\d)/i, prefix: 'Maxi ICA' },
+      { regex: /ICA\s+Supermarket\s+([A-Za-zåäöÅÄÖ\s]+?)(?:\n|Tel|\d)/i, prefix: 'ICA Supermarket' },
+    ];
+    for (const { regex, prefix } of storePatterns) {
+      const match = text.match(regex);
+      if (match) {
+        storeName = `${prefix} ${match[1].trim()}`;
+        break;
+      }
     }
     debugLog.push(`  🏪 Store: ${storeName}`);
 
@@ -1362,6 +1371,7 @@ serve(async (req) => {
     console.log(`🔧 Parser version: ${selectedVersion}`);
 
     const isComparisonMode = selectedVersion === 'comparison';
+    const isStructuredOnly = selectedVersion === 'structured-only';
 
     // Support both single image (legacy) and multiple images (new)
     const imagesToProcess = imageUrls || (imageUrl ? [imageUrl] : []);
@@ -1516,15 +1526,19 @@ serve(async (req) => {
         rawPdfText.toLowerCase().includes('willy') ||
         rawPdfText.includes('Självscanning');
 
-      // Detect ICA Kvantum specifically (has table format with "Beskrivning" header)
-      const isICAKvantum = rawPdfText.includes('Kvantum') &&
+      // Detect ICA table format receipts (Kvantum, Nära, Maxi - all use same table format)
+      // Key indicator: has "Beskrivning" column header
+      const isICATableFormat = (rawPdfText.includes('Kvantum') ||
+        rawPdfText.includes('Nära') ||
+        rawPdfText.includes('Maxi ICA') ||
+        rawPdfText.includes('ICA Supermarket')) &&
         (rawPdfText.includes('BeskrivningArtikelnummer') || rawPdfText.includes('Beskrivning'));
 
-      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
-      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICAKvantum ? 'ICA Kvantum' : 'ICA'}`);
+      console.log(`🏪 Detected store type: ${isWillys ? 'Willys' : isICATableFormat ? 'ICA Table Format' : 'ICA'}`);
+      debugLog.push(`→ Store type: ${isWillys ? 'Willys' : isICATableFormat ? 'ICA Table Format' : 'ICA'}`);
 
       // For comparison mode, always use experimental parser
-      if (selectedVersion === 'experimental' || isComparisonMode) {
+      if (selectedVersion === 'experimental' || isComparisonMode || isStructuredOnly) {
         // Experimental parser: Pre-process text to fix merged fields
         debugLog.push('→ Using experimental parser with pre-processing...');
         const preprocessedText = preprocessICAText(rawPdfText);
@@ -1532,7 +1546,7 @@ serve(async (req) => {
 
         if (isWillys) {
           structuredResult = parseWillysReceiptText(rawPdfText, debugLog);
-        } else if (isICAKvantum) {
+        } else if (isICATableFormat) {
           // Try ICA Kvantum parser first (table format)
           debugLog.push('→ Trying ICA Kvantum table parser...');
           structuredResult = parseICAKvantumText(preprocessedText, debugLog);
@@ -1552,8 +1566,8 @@ serve(async (req) => {
 
       structuredTiming = Date.now() - structuredStart;
 
-      // For non-comparison mode, return structured results if successful
-      if (!isComparisonMode && structuredResult && structuredResult.items && structuredResult.items.length > 0) {
+      // For non-comparison mode (excluding structured-only which has its own return), return structured results
+      if (!isComparisonMode && !isStructuredOnly && structuredResult && structuredResult.items && structuredResult.items.length > 0) {
         console.log('🎯 Using structured parsing results instead of AI!');
         debugLog.push(`✓ Structured parsing succeeded: ${structuredResult.items.length} items`);
 
@@ -1656,12 +1670,30 @@ Return a JSON array of categories in the same order: ["category1", "category2", 
     }
 
     // Log structured parsing result for comparison mode
-    if (isComparisonMode) {
+    if (isComparisonMode || isStructuredOnly) {
       if (structuredResult && structuredResult.items.length > 0) {
         debugLog.push(`✓ Structured parsing: ${structuredResult.items.length} items (${structuredTiming}ms)`);
       } else {
         debugLog.push(`✗ Structured parsing: 0 items (${structuredTiming}ms)`);
       }
+    }
+
+    // For structured-only mode, return immediately without AI fallback
+    if (isStructuredOnly) {
+      debugLog.push('→ Structured-only mode: Skipping AI parser');
+      const itemsCount = structuredResult?.items?.length || 0;
+      return new Response(
+        JSON.stringify({
+          items: structuredResult?.items || [],
+          store_name: structuredResult?.store_name || 'Unknown',
+          total_amount: structuredResult?.total_amount || null,
+          receipt_date: structuredResult?.receipt_date || null,
+          parserVersion: 'structured-only',
+          structured_items_count: itemsCount,
+          debug_log: debugLog.join('\n'),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('⚠️ Structured parsing not available, falling back to AI...');

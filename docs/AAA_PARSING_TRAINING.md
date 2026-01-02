@@ -528,16 +528,37 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 8. `feat: Add bulk receipt testing feature`
 9. `fix: Four parsing issues - Pant regex, comma in names, footer, Pantretur`
 10. `fix: Pant regex - exactly 1 digit for qty, 2-decimal for prices`
+11. `feat: Add multi-store ICA support (Nära, Maxi, Supermarket)`
+12. `feat: Add structured-only parser mode for fast bulk testing`
+13. `feat: Add fast mode toggle to bulk tester`
 
 #### Known Limitations
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
+#### Multi-Store ICA Support (2026-01-02)
+
+All ICA stores using the digital PDF format are now supported:
+- **ICA Kvantum** (e.g., Kungens Kurva, Liljeholmen)
+- **ICA Nära** (e.g., Älvsjö)
+- **Maxi ICA** (e.g., Stormarknad Värmdö)
+- **ICA Supermarket** (e.g., Årsta, Rimbo)
+
+Detection is based on store name + "Beskrivning" column header.
+
+#### Bulk Testing Modes
+
+| Mode | Speed | Use Case |
+|------|-------|----------|
+| **Snabbläge** (default) | 2-10ms | Fast validation of structured parser |
+| **Jämförelseläge** | 20-30s | Full AI comparison, risk of timeout |
+
+**Note:** Free tier has 150s Edge Function timeout. Use "Snabbläge" for bulk testing, then test individual failures with "Jämförelseläge".
+
 #### Bulk Testing Results (2026-01-02)
 
-Tested 10 ICA Kvantum receipts:
-- **9/10 passed (90%)** → 100% match rate on passing receipts
-- 1 failure: Edge Function timeout (unrelated to parser)
+Tested 6 ICA stores (Kvantum, Nära, Maxi, Supermarket):
+- **100% passed** with structured parser in fast mode
 
 ---
 

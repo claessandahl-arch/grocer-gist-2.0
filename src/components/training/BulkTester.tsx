@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2 } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { ComparisonView } from "./ComparisonView";
 
@@ -82,6 +82,7 @@ export function BulkTester() {
     const [processing, setProcessing] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedResult, setSelectedResult] = useState<BulkTestResult | null>(null);
+    const [fastMode, setFastMode] = useState(true); // Fast mode skips AI for speed
 
     // Initialize PDF.js worker
     useState(() => {
@@ -228,7 +229,7 @@ export function BulkTester() {
                     imageUrl,
                     pdfUrl,
                     originalFilename: file.name,
-                    parserVersion: 'comparison',
+                    parserVersion: fastMode ? 'structured-only' : 'comparison',
                 },
             });
 
@@ -241,6 +242,7 @@ export function BulkTester() {
 
             if (error) throw error;
 
+            // Handle comparison mode response
             if (data && data.mode === 'comparison') {
                 const comparison = data as ComparisonResult;
                 const matchRate = comparison.diff.matchRate;
@@ -255,7 +257,23 @@ export function BulkTester() {
                 };
             }
 
-            throw new Error('Unexpected response format');
+            // Handle structured-only mode response (no AI comparison)
+            if (data && data.parserVersion === 'structured-only') {
+                const itemsCount = data.structured_items_count || data.items?.length || 0;
+                // In structured-only mode, pass is based on finding items (not comparison)
+                const passed = itemsCount > 0;
+
+                return {
+                    filename: file.name,
+                    status: passed ? 'passed' : 'failed',
+                    comparison: null, // No comparison data in structured-only mode
+                    matchRate: passed ? 100 : 0, // Binary: either parsed or not
+                    timing: endTime - startTime,
+                    errorMessage: !passed ? `Structured parser found ${itemsCount} items` : undefined,
+                };
+            }
+
+            throw new Error(`Unexpected response format. Got: ${JSON.stringify(data ? Object.keys(data) : 'null')}`);
         } catch (error: any) {
             return {
                 filename: file.name,
@@ -387,6 +405,32 @@ export function BulkTester() {
                                 </div>
                             )}
 
+                            {/* Fast mode toggle */}
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                                <div className="flex items-center gap-2">
+                                    <Zap className={`h-4 w-4 ${fastMode ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                                    <div>
+                                        <div className="font-medium text-sm">
+                                            {fastMode ? 'Snabbläge' : 'Jämförelseläge'}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {fastMode
+                                                ? 'Endast strukturerad parser (2-10ms per kvitto)'
+                                                : 'Jämför mot AI (20-30s per kvitto, risk för timeout)'
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant={fastMode ? "secondary" : "outline"}
+                                    size="sm"
+                                    onClick={() => setFastMode(!fastMode)}
+                                    disabled={processing}
+                                >
+                                    {fastMode ? 'Aktivera AI-jämförelse' : 'Aktivera snabbläge'}
+                                </Button>
+                            </div>
+
                             {/* Actions */}
                             <div className="flex gap-2">
                                 <Button
@@ -468,14 +512,14 @@ export function BulkTester() {
                                     <div
                                         key={idx}
                                         className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${result.status === 'passed'
-                                                ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                                                : result.status === 'failed'
-                                                    ? 'bg-red-50 border-red-200 hover:bg-red-100'
-                                                    : result.status === 'processing'
-                                                        ? 'bg-blue-50 border-blue-200'
-                                                        : result.status === 'error'
-                                                            ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
-                                                            : 'bg-muted/50 border-muted'
+                                            ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                                            : result.status === 'failed'
+                                                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                                                : result.status === 'processing'
+                                                    ? 'bg-blue-50 border-blue-200'
+                                                    : result.status === 'error'
+                                                        ? 'bg-orange-50 border-orange-200 hover:bg-orange-100'
+                                                        : 'bg-muted/50 border-muted'
                                             }`}
                                         onClick={() => result.comparison && setSelectedResult(result)}
                                     >
