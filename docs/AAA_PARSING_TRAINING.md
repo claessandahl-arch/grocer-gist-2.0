@@ -536,6 +536,10 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
+2. **Bundle offer name continuation** - Lines like "Wienerbröd 4F25" (bundle offer description) may be incorrectly appended to the previous product name instead of being skipped. This affects item names but not totals. Example: "Wienerbröd vanilj Wienerbröd 4F25" instead of just "Wienerbröd vanilj".
+
+3. **Pantretur math discrepancies** - Some ICA receipts show Pantretur totals that don't match unit × qty. Parser logs a warning (`⚠️ Pantretur math: X × Y = Z, but got W`) but uses the actual receipt value.
+
 #### Multi-Store ICA Support (2026-01-02)
 
 All ICA stores using the digital PDF format are now supported:
