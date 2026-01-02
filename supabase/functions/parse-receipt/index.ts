@@ -494,6 +494,19 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
       if (discountOnlyMatch && currentProduct) {
         const discount = Math.abs(parseFloat(discountOnlyMatch[1].replace(',', '.')));
+
+        // Check if this is a coupon discount
+        if ((currentProduct as any)._isCoupon) {
+          // Coupon: set price to negative discount (it's a receipt-level discount)
+          currentProduct.price = -discount;
+          delete (currentProduct as any)._isCoupon;
+          matchedLines++;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    🎟️ Coupon discount: -${discount} kr`);
+          continue;
+        }
+
+        // Regular product discount
         currentProduct.discount = (currentProduct.discount || 0) + discount;
         currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
         // Clear the expects discount flag now that discount is applied
@@ -530,15 +543,44 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         continue;
       }
 
+      // === PATTERN 4a: Receipt-level coupon line ===
+      // Lines like "Värdekupong 10%", "Kupong", "Rabatt" are receipt-level discounts
+      // They should NOT be appended to the previous product
+      const couponMatch = line.match(/^(Värdekupong|Kupong|Rabatt|Värdecheck|Bonus)/i);
+      if (couponMatch) {
+        // Save current product first
+        if (currentProduct) {
+          items.push(currentProduct);
+          currentProduct = null;
+        }
+
+        // Create a coupon item with 0 price initially
+        // The next line will have the discount amount
+        currentProduct = {
+          name: line,
+          price: 0,
+          quantity: 1,
+          category: 'discount' as any
+        };
+
+        // Mark that we expect a discount on the next line
+        (currentProduct as any)._isCoupon = true;
+
+        matchedLines++;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    🎟️ Receipt coupon detected: "${line}"`);
+        continue;
+      }
+
       // === PATTERN 4: Brand/continuation without discount ===
       // Lines like "Citroner 3F18" (name continuation, positive or no number)
       const brandOnlyMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ][A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+)$/);
 
       if (brandOnlyMatch && currentProduct && !line.match(/^\*?Pant$/i)) {
         const brandText = brandOnlyMatch[1].trim();
-        // Don't append if it looks like a header or footer line
+        // Don't append if it looks like a header, footer, or coupon line
         if (brandText.length > 1 && brandText.length < 40 &&
-          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat)/i)) {
+          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat|Värdekupong|Kupong|Rabatt|Värdecheck|Bonus)/i)) {
           currentProduct.name += ' ' + brandText;
           multilineCount++;
           matchedLines++;
