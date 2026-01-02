@@ -508,18 +508,19 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 3. `fix: Handle comma-prefixed quantity field in ICA Kvantum parser`
 4. `fix: Add orphan Pant values detection (Pattern 8)`
 5. `fix: Handle *Pant format (asterisk prefix on Pant lines)`
+6. `feat: Add kg (weight) unit support in Pattern 1`
+7. `feat: Add receipt-level coupon detection (Pattern 4a)`
+8. `feat: Add bulk receipt testing feature`
 
 #### Known Limitations
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
-2. **Weight-based products (kg)** - Products sold by weight use `kg` instead of `st`. Current pattern only matches `st` unit.
-   - Example: `Julskinka rimmad ... 2,91 kg 320,10` is skipped
-   - **Future fix:** Add pattern for `kg` unit with weight extraction
+#### Bulk Testing Results (2026-01-02)
 
-3. **Receipt-level coupons** - Coupons like "Värdekupong 10%" at the end of the receipt are incorrectly treated as name continuations for the previous product.
-   - Example: "Ägg 12-p Rosa L" gets corrupted to "Ägg 12-p Rosa L Värdekupong 10%" with -353.52 kr discount
-   - **Future fix:** Detect "Värdekupong", "Kupong", "Rabatt" lines as separate discount items
+Tested 9 ICA Kvantum receipts:
+- **8/9 passed (89%)**
+- 1 failure at 97.5% match rate (to investigate)
 
 ---
 
