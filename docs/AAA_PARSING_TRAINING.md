@@ -464,24 +464,39 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 
 #### Implementation Details
 
-**7 patterns implemented in `parseICAKvantumText()`:**
+**11 patterns implemented in `parseICAKvantumText()`:**
 
 | # | Pattern | Example |
 |---|---------|---------|
 | 1 | Right-anchored product (`st`/`kg`) | `Bananschalottenlök ... st 21,95` |
 | 2 | Discount-only | `-40,80` |
 | 3 | Brand + Discount | `OLW 4F89 -40,80` |
-| 4 | Brand continuation | `Citroner 3F18` |
+| 4 | Brand continuation | `Citroner 3F18`, `Hundmat, portion` |
 | 4a | Receipt coupon | `Värdekupong 10%`, `Kupong`, `Rabatt` |
 | 5 | Pant header (with optional `*`) | `Pant` or `*Pant` |
-| 6 | Pant values | `2,0024,00` (merged) |
+| 6 | Pant values | `2,0024,00`, `8,00216,00` (merged) |
 | 7 | Full Pant line | `Pant 2,00 2 4,00` |
 | 8 | Orphan Pant values | `1,0011,00` (no header detected) |
+| 9 | Pantretur header | `Pantretur, låg moms` |
+| 10 | Pantretur values | `23,001-23,00` (negative return) |
+
+**Pant regex (Pattern 6):**
+```typescript
+// Pattern: unitPrice(X,XX) + qty(1 digit) + total(X+,XX)
+// The ,\d{2} (exactly 2 decimals) creates unambiguous anchor points
+/^(\d+,\d{2})(\d)(\d+,\d{2})$/
+```
 
 **Extended character support:**
 ```typescript
 // Added: éèüûôîâêëïÉÈÜÛÔÎÂÊËÏ
 // Handles: F-müsli, Laxfilé, etc.
+```
+
+**Footer detection:**
+```typescript
+// Stops product parsing at:
+// Betalat, Moms %, Betalningsinformation, Erhållen rabatt, Delavstämning
 ```
 
 #### Results
@@ -508,18 +523,21 @@ const qtyMatch = rawContent.match(/[,.](\d+)[,.]\d+$/);
 3. `fix: Handle comma-prefixed quantity field in ICA Kvantum parser`
 4. `fix: Add orphan Pant values detection (Pattern 8)`
 5. `fix: Handle *Pant format (asterisk prefix on Pant lines)`
+6. `feat: Add kg (weight) unit support in Pattern 1`
+7. `feat: Add receipt-level coupon detection (Pattern 4a)`
+8. `feat: Add bulk receipt testing feature`
+9. `fix: Four parsing issues - Pant regex, comma in names, footer, Pantretur`
+10. `fix: Pant regex - exactly 1 digit for qty, 2-decimal for prices`
 
 #### Known Limitations
 
 1. **Bundle discounts** - Multi-buy discounts (e.g., "4 chips for 89kr") are applied to the last item only, which can result in negative individual prices. The **total is still correct** for receipt purposes.
 
-2. **Weight-based products (kg)** - Products sold by weight use `kg` instead of `st`. Current pattern only matches `st` unit.
-   - Example: `Julskinka rimmad ... 2,91 kg 320,10` is skipped
-   - **Future fix:** Add pattern for `kg` unit with weight extraction
+#### Bulk Testing Results (2026-01-02)
 
-3. **Receipt-level coupons** - Coupons like "Värdekupong 10%" at the end of the receipt are incorrectly treated as name continuations for the previous product.
-   - Example: "Ägg 12-p Rosa L" gets corrupted to "Ägg 12-p Rosa L Värdekupong 10%" with -353.52 kr discount
-   - **Future fix:** Detect "Värdekupong", "Kupong", "Rabatt" lines as separate discount items
+Tested 10 ICA Kvantum receipts:
+- **9/10 passed (90%)** → 100% match rate on passing receipts
+- 1 failure: Edge Function timeout (unrelated to parser)
 
 ---
 

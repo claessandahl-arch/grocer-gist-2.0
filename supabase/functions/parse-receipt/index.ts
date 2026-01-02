@@ -394,7 +394,8 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
     for (let i = startIdx; i < lines.length; i++) {
       const line = lines[i];
       if (line.includes('Betalat') || line.includes('Moms %') ||
-        line.includes('Betalningsinformation') || line.includes('Erhållen rabatt')) {
+        line.includes('Betalningsinformation') || line.includes('Erhållen rabatt') ||
+        line.includes('Delavstämning')) {
         endIdx = i;
         debugLog.push(`  🛑 Product section ends at line ${endIdx} (footer detected)`);
         break;
@@ -406,6 +407,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
     // State for Pant tracking (Pant can be split across 2 lines)
     let expectingPantValues = false;
+    let expectingPantreturValues = false;
 
     for (let i = startIdx; i < endIdx; i++) {
       const line = lines[i];
@@ -573,14 +575,14 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       }
 
       // === PATTERN 4: Brand/continuation without discount ===
-      // Lines like "Citroner 3F18" (name continuation, positive or no number)
-      const brandOnlyMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ][A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+)$/);
+      // Lines like "Citroner 3F18" or "Hundmat, portion" (name continuation)
+      const brandOnlyMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ][A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%.,]+)$/);
 
       if (brandOnlyMatch && currentProduct && !line.match(/^\*?Pant$/i)) {
         const brandText = brandOnlyMatch[1].trim();
-        // Don't append if it looks like a header, footer, or coupon line
+        // Don't append if it looks like a header, footer, coupon, or Pantretur line
         if (brandText.length > 1 && brandText.length < 40 &&
-          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat|Värdekupong|Kupong|Rabatt|Värdecheck|Bonus)/i)) {
+          !brandText.match(/^(Moms|Kort|Netto|Brutto|Totalt|Erhållen|Betalat|Värdekupong|Kupong|Rabatt|Värdecheck|Bonus|Pantretur)/i)) {
           currentProduct.name += ' ' + brandText;
           multilineCount++;
           matchedLines++;
@@ -608,10 +610,12 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
       // === PATTERN 6: Pant values on follow-up line ===
       // Merged format like "2,0024,00" = "2,00 2 4,00" (unit price, qty, total)
-      // Or simpler patterns
+      // Or "8,00216,00" = "8,00 2 16,00"
       if (expectingPantValues) {
-        // Try to parse merged Pant values: "2,0024,00" or "1,0011,00"
-        const pantValuesMatch = line.match(/^(\d+[,.]\d+)(\d)(\d+[,.]\d+)$/);
+        // Try to parse merged Pant values with exact 2-decimal pattern
+        // Pattern: unitPrice(X,XX) + qty(exactly 1 digit) + total(X+,XX)
+        // Qty is always 1-9 for Pant (single digit), which prevents greedy matching issues
+        const pantValuesMatch = line.match(/^(\d+,\d{2})(\d)(\d+,\d{2})$/);
         if (pantValuesMatch) {
           const pantUnitPrice = parseFloat(pantValuesMatch[1].replace(',', '.'));
           const pantQty = parseInt(pantValuesMatch[2]);
@@ -711,6 +715,48 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
           debugLog.push(`    🍾 Pant (orphan values): ${qty}x ${unitPrice} kr = ${total} kr`);
           continue;
         }
+      }
+
+      // === PATTERN 9: Pantretur header ===
+      // "Pantretur, låg moms" - followed by negative pant value on next line
+      if (line.match(/^Pantretur/i)) {
+        // Save current product first
+        if (currentProduct) {
+          items.push(currentProduct);
+          currentProduct = null;
+        }
+        expectingPantreturValues = true;
+        expectingPantValues = false;
+        matchedLines++;
+        debugLog.push(`  Line ${i}: "${linePreview}"`);
+        debugLog.push(`    🔄 Pantretur header detected - expecting values on next line`);
+        continue;
+      }
+
+      // === PATTERN 10: Pantretur values ===
+      // Format: "23,001-23,00" = qty 1, amount -23.00
+      if (expectingPantreturValues) {
+        // Try to parse Pantretur values: "23,001-23,00" (unitPrice, qty, negative total)
+        const pantreturMatch = line.match(/^(\d+,\d{2})(\d+)(-\d+,\d{2})$/);
+        if (pantreturMatch) {
+          const pantreturQty = parseInt(pantreturMatch[2]);
+          const pantreturTotal = parseFloat(pantreturMatch[3].replace(',', '.'));
+
+          items.push({
+            name: 'Pantretur',
+            price: pantreturTotal,
+            quantity: pantreturQty,
+            category: 'pant'
+          });
+
+          pantCount++;
+          matchedLines++;
+          expectingPantreturValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    🔄 Pantretur values: ${pantreturQty}x = ${pantreturTotal} kr`);
+          continue;
+        }
+        expectingPantreturValues = false;
       }
 
       // === NO MATCH ===
