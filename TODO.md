@@ -6,11 +6,16 @@
   - Reduced batch size from 200 → 75 groups to prevent Gemini API timeout
   - Groups sorted by product count to prioritize larger groups
 
-## Known Bugs 🐛
+- [x] **"AI-mappa till grupper" returning no suggestions** (PR #19)
+  - **Symptom:** Clicking "AI-mappa till grupper" returned "Inga produkter kunde mappas automatiskt" even for obvious matches like SALLADSLÖK → Salladslök
+  - **Root cause:** Case-sensitivity mismatch between frontend and Edge Function
+    - Frontend used case-**sensitive** check (`m.original_name`)
+    - Edge Function used case-**insensitive** check (`toLowerCase()`)
+  - **Effect:** Products like "SALLADSLÖK" appeared unmapped in UI when only lowercase "salladslök" mapping existed. Edge Function correctly identified them as mapped and skipped them.
+  - **Fix:** Updated `ProductManagement.tsx` to use `toLowerCase()` for mapping lookups
+  - **Lesson learned:** Always use case-insensitive matching for product name lookups to handle receipt variations
 
-- [ ] **54 products still unmapped**
-  - These were never mapped in the old system
-  - Can run auto-map to fix
+## Known Bugs 🐛
 
 - [ ] **Receipt images on old storage**
   - Images still point to old Lovable Storage URLs

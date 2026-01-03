@@ -679,6 +679,15 @@ When testing the upload functionality:
    - **Solution**: Run `npm run build` locally. If it fails, fix the errors before pushing.
    - **Prevention**: Never push code that hasn't passed a local build check.
 
+7. **Product Mapping Not Finding Matches** (PR #19)
+   - **Symptom**: "AI-mappa till grupper" returns no suggestions even for obvious matches (e.g., SALLADSLÖK → Salladslök)
+   - **Cause**: Case-sensitivity mismatch. Receipts may contain "SALLADSLÖK" but mapping exists for "salladslök"
+   - **Rule**: Always use **case-insensitive** matching (`toLowerCase()`) when:
+     - Checking if a product is already mapped
+     - Looking up product mappings
+     - Comparing product names from receipts vs. database
+   - **Key files**: `ProductManagement.tsx`, `auto-map-products/index.ts`
+
 ## Context7 MCP Integration
 
 This project uses **Context7** MCP server to fetch up-to-date documentation before implementing new features.
