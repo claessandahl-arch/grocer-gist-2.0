@@ -176,11 +176,15 @@ function buildPrompt(
   trainingExamples: Array<{ name: string; category: string }>,
   feedback: Array<{ product_name: string; suggested_category: string; final_category: string; accepted: boolean }>
 ): string {
+  // IMPORTANT: These must match categoryConstants.ts in the frontend
   const categoryList = [
-    'frukt_gront',
+    'frukt_och_gront',
     'mejeri',
     'kott_fagel_chark',
+    'fisk_skaldjur',
     'brod_bageri',
+    'skafferi',
+    'frysvaror',
     'drycker',
     'sotsaker_snacks',
     'fardigmat',
@@ -191,17 +195,20 @@ function buildPrompt(
   ];
 
   const categoryDescriptions: Record<string, string> = {
-    frukt_gront: 'Frukt och grönsaker',
-    mejeri: 'Mjölkprodukter, ost, yoghurt, smör',
-    kott_fagel_chark: 'Kött, kyckling, korv, chark',
+    frukt_och_gront: 'Frukt och grönsaker (färska)',
+    mejeri: 'Mjölkprodukter, ost, yoghurt, smör, ägg',
+    kott_fagel_chark: 'Kött, kyckling, korv, pålägg, charkuterier',
+    fisk_skaldjur: 'Fisk och skaldjur',
     brod_bageri: 'Bröd, kakor, bakverk',
-    drycker: 'Drycker (INTE mjölk)',
-    sotsaker_snacks: 'Godis, chips, snacks',
+    skafferi: 'Torrvaror, konserver, kryddor, pasta, ris, mjöl',
+    frysvaror: 'Frysta produkter (inte färdigmat)',
+    drycker: 'Drycker (läsk, juice, vatten - INTE mjölk)',
+    sotsaker_snacks: 'Godis, chips, snacks, choklad',
     fardigmat: 'Färdiglagad mat, frysta rätter',
-    hushall_hygien: 'Städprodukter, hygienartiklar',
-    delikatess: 'Deli-produkter, ost från disk',
-    pant: 'Pant',
-    other: 'Övriga produkter'
+    hushall_hygien: 'Städprodukter, hygienartiklar, hushållspapper',
+    delikatess: 'Delikatessprodukter, specialost',
+    pant: 'Pant på flaskor/burkar',
+    other: 'Övriga produkter som inte passar någon annanstans'
   };
 
   let prompt = `Du är en expert på att kategorisera svenska matvaror. Din uppgift är att föreslå kategorier för produkter.

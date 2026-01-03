@@ -1581,13 +1581,16 @@ serve(async (req) => {
         // Use AI only for categorization
         // Build a simple prompt to categorize the items
         const categorizationPrompt = `Categorize these Swedish grocery items into ONE of these categories:
-- frukt_gront (Fruit, vegetables, salad)
-- mejeri (Milk, cheese, yogurt, butter)
+- frukt_och_gront (Fruit, vegetables, salad)
+- mejeri (Milk, cheese, yogurt, butter, eggs)
 - kott_fagel_chark (Meat, chicken, deli meats)
+- fisk_skaldjur (Fish and seafood)
 - brod_bageri (Bread, pasta, pastries, baked goods)
+- skafferi (Pantry items, canned goods, spices, rice, flour)
+- frysvaror (Frozen products, not ready meals)
 - drycker (Drinks, juice, soda)
-- sotsaker_snacks (Candy, chips, snacks)
-- fardigmat (Ready meals, frozen food)
+- sotsaker_snacks (Candy, chips, snacks, chocolate)
+- fardigmat (Ready meals, frozen dinners)
 - hushall_hygien (Household products, cleaning, hygiene)
 - delikatess (Delicatessen, specialty items)
 - pant (Bottle deposit/return)
@@ -2034,13 +2037,16 @@ ${filenameHint}
 
 6. CATEGORY MAPPING:
    Categorize each item into ONE of these Swedish categories:
-   - frukt_gront (Fruit, vegetables, salad)
-   - mejeri (Milk, cheese, yogurt, butter)
+   - frukt_och_gront (Fruit, vegetables, salad)
+   - mejeri (Milk, cheese, yogurt, butter, eggs)
    - kott_fagel_chark (Meat, chicken, deli meats)
+   - fisk_skaldjur (Fish and seafood)
    - brod_bageri (Bread, pastries, baked goods)
+   - skafferi (Pantry items, canned goods, spices, rice, flour)
+   - frysvaror (Frozen products, not ready meals)
    - drycker (Drinks, juice, soda)
-   - sotsaker_snacks (Candy, chips, snacks)
-   - fardigmat (Ready meals, frozen food)
+   - sotsaker_snacks (Candy, chips, snacks, chocolate)
+   - fardigmat (Ready meals, frozen dinners)
    - hushall_hygien (Household products, cleaning, hygiene)
    - delikatess (Delicatessen, specialty items)
    - pant (Bottle deposit/return)
