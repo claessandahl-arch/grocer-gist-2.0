@@ -15,6 +15,14 @@
   - **Fix:** Updated `ProductManagement.tsx` to use `toLowerCase()` for mapping lookups
   - **Lesson learned:** Always use case-insensitive matching for product name lookups to handle receipt variations
 
+- [x] **Category key inconsistency (`fruits_vegetables` → `frukt_och_gront`)** (PRs #20, #21)
+  - **Symptom:** Categories like `fruits_vegetables`, `dairy` appeared in database but frontend expected `frukt_och_gront`, `mejeri`
+  - **Root cause:** Seed migration used English category keys, Edge Functions used inconsistent Swedish keys (`frukt_gront` missing `_och_`)
+  - **Fix:**
+    1. PR #20: Updated Edge Functions to use canonical Swedish keys from `categoryConstants.ts`
+    2. PR #21: Database migration to convert all English keys to Swedish
+  - **meat_fish split:** Lax/Laxfilé → `fisk_skaldjur`, all meat → `kott_fagel_chark`
+
 ## Known Bugs 🐛
 
 - [ ] **Receipt images on old storage**
