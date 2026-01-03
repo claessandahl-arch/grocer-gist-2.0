@@ -43,8 +43,7 @@
 
 - [x] **ICA Kvantum structured parser** - Fixed! Now supports ICA Kvantum, Nära, Maxi, Supermarket with 94% pass rate
 - [x] **Pantretur validation logging** - Added warning when math doesn't match (PR #18)
-- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes on 429 errors
-- [ ] **Add retry logic for rate limits** - Exponential backoff for Gemini 429 errors
+- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes
 
 **Known parser limitations** (documented, won't fix):
 - Bundle discounts can result in negative item prices (totals correct)
