@@ -56,12 +56,12 @@ export default function ProductManagement() {
     queryFn: async () => {
       console.log('[ProductManagement] Fetching all user mappings with pagination...');
       if (!user) return [];
-      
+
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let from = 0;
       let hasMore = true;
-      
+
       while (hasMore) {
         const { data, error } = await supabase
           .from('product_mappings')
@@ -70,7 +70,7 @@ export default function ProductManagement() {
           .range(from, from + PAGE_SIZE - 1);
 
         if (error) throw error;
-        
+
         if (data && data.length > 0) {
           allData = [...allData, ...data];
           from += PAGE_SIZE;
@@ -79,7 +79,7 @@ export default function ProductManagement() {
           hasMore = false;
         }
       }
-      
+
       console.log('[ProductManagement] User mappings fetched (paginated):', allData.length);
       return allData.map(m => ({ ...m, type: 'user' as const }));
     },
@@ -124,9 +124,9 @@ export default function ProductManagement() {
     return [...userMappings, ...globalMappings];
   }, [userMappings, globalMappings]);
 
-  // Get mapped original names
+  // Get mapped original names (case-insensitive to match Edge Function logic)
   const mappedOriginalNames = useMemo(() => {
-    const mapped = new Set(allMappings.map(m => m.original_name));
+    const mapped = new Set(allMappings.map(m => m.original_name.toLowerCase()));
     console.log('[ProductManagement] Total mapped products:', mapped.size);
     console.log('[ProductManagement] User mappings:', userMappings.length);
     console.log('[ProductManagement] Global mappings:', globalMappings.length);
@@ -136,7 +136,7 @@ export default function ProductManagement() {
   // Get unmapped products (products from receipts that don't have mappings yet)
   const unmappedProducts = useMemo(() => {
     const result = allProductNames
-      .filter(name => !mappedOriginalNames.has(name))
+      .filter(name => !mappedOriginalNames.has(name.toLowerCase()))
       .map(name => ({
         id: `unmapped-${name}`, // Temporary ID for unmapped products
         original_name: name,
@@ -313,7 +313,7 @@ export default function ProductManagement() {
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Varning: Du har nått gränsen för produktmappningar ({userMappings.length === 10000 ? 'personliga' : 'globala'}). 
+              Varning: Du har nått gränsen för produktmappningar ({userMappings.length === 10000 ? 'personliga' : 'globala'}).
               Vissa produkter kanske inte visas. Kontakta support om du behöver hantera fler mappningar.
             </AlertDescription>
           </Alert>
@@ -376,17 +376,17 @@ export default function ProductManagement() {
                     console.log('[ProductManagement] Current user id:', user?.id);
                     // Use exact query key with user id for user mappings
                     console.log('[ProductManagement] Refetching user-product-mappings...');
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['user-product-mappings', user?.id],
                       exact: true,
                     });
                     console.log('[ProductManagement] Refetching global-product-mappings...');
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['global-product-mappings'],
                       exact: true,
                     });
                     console.log('[ProductManagement] Refetching receipts-all...');
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['receipts-all'],
                       exact: true,
                     });
@@ -405,15 +405,15 @@ export default function ProductManagement() {
                   isLoading={isLoading}
                   onRefresh={async () => {
                     console.log('[ProductManagement] onRefresh called - Refreshing after group change...');
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['user-product-mappings', user?.id],
                       exact: true,
                     });
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['global-product-mappings'],
                       exact: true,
                     });
-                    await queryClient.refetchQueries({ 
+                    await queryClient.refetchQueries({
                       queryKey: ['receipts-all'],
                       exact: true,
                     });
