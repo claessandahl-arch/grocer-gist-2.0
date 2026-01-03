@@ -1,5 +1,7 @@
 # TODO
 
+> **Last session:** 2026-01-03 — Fixed AI-mappa case-sensitivity (PR #19), category standardization (PRs #20, #21). Now on paid Gemini plan.
+
 ## Fixed Bugs ✅
 
 - [x] **"Sök liknande grupper" timeout fixed** (PR #2)
