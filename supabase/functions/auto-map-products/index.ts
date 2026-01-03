@@ -135,6 +135,11 @@ serve(async (req) => {
 
     const prompt = buildPrompt(productsToMap, existingGroups);
 
+    // DEBUG: Log the prompt being sent (first 2000 chars)
+    console.log('[auto-map-products] Prompt preview (first 2000 chars):', prompt.substring(0, 2000));
+    console.log('[auto-map-products] Products to map:', productsToMap.map(p => p.name));
+    console.log('[auto-map-products] Sample groups:', existingGroups.slice(0, 10).map(g => g.mapped_name));
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
 
@@ -173,6 +178,9 @@ serve(async (req) => {
 
       const aiData = await aiResponse.json();
       const aiContent = aiData.choices[0].message.content;
+
+      // DEBUG: Log raw AI response
+      console.log('[auto-map-products] Raw AI response:', aiContent);
 
       // Parse AI response
       let parsedResponse: { mappings: MappingResult[] };
