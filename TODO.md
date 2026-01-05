@@ -1,6 +1,6 @@
 # TODO
 
-> **Last session:** 2026-01-03 — Fixed AI-mappa case-sensitivity (PR #19), category standardization (PRs #20, #21). Now on paid Gemini plan.
+> **Last session:** 2026-01-05 — Performance optimizations: removed console.log statements (PR #22), added Dashboard staleTime caching (PR #23). Created TECH_STACK.md documentation.
 
 ## Fixed Bugs ✅
 
@@ -34,11 +34,26 @@
 
 ---
 
+## Performance Optimizations ⚡
+
+- [x] **Removed debug console.log statements** (PR #22)
+  - Removed 50+ console.log statements polluting browser console
+  - Files cleaned: `ProductManagement.tsx`, `DataManagement.tsx`, `Upload.tsx`, `UngroupedProductsList.tsx`, `AssignToGroupDropdown.tsx`, `CreateGroupDialog.tsx`
+  - Kept `console.error`/`console.warn` for actual error handling
+  - Project logger utility (`src/lib/logger.ts`) available for development debugging
+
+- [x] **Dashboard TanStack Query caching** (PR #23)
+  - Added `staleTime: 5 * 60 * 1000` to `monthly-stats` and `category-breakdown` queries
+  - Prevents unnecessary refetches on tab switch or navigation
+  - Added cache invalidation after receipt upload so new receipts show immediately
+
+---
+
 ## Future Improvements 🚀
 
 ### Minor Cleanup
 
-- [ ] Remove console.log statements from `ProductManagement.tsx`
+- [x] ~~Remove console.log statements~~ → Completed in PR #22
 - [ ] Add TypeScript types for database views (currently using `any`)
 
 ### Structured Parsing (January 2026)
