@@ -283,21 +283,12 @@ const Upload = () => {
             }
           }
           const storageEnd = performance.now();
-          console.log(`⏱️ Storage upload: ${((storageEnd - storageStart) / 1000).toFixed(2)}s`);
-
-          // Call AI once with all image URLs and optional PDF URL
-          console.log(`📤 Calling parse-receipt with:`, {
-            imageCount: imageUrls.length,
-            hasPdfUrl: !!pdfUrl,
-            filename: baseFilename
-          });
 
           const parseStart = performance.now();
           const { data: parsedData, error: functionError } = await supabase.functions.invoke('parse-receipt', {
             body: { imageUrls: imageUrls, originalFilename: baseFilename, pdfUrl: pdfUrl }
           });
           const parseEnd = performance.now();
-          console.log(`⏱️ Parse-receipt: ${((parseEnd - parseStart) / 1000).toFixed(2)}s`);
 
           if (functionError || !parsedData) {
             console.error(`❌ Parse error for ${baseFilename}:`, functionError);
@@ -306,28 +297,6 @@ const Upload = () => {
             return;
           }
 
-          // Log the parsed data so we can see what the AI returned
-          console.log(`📥 Parsed receipt data for ${baseFilename}:`, parsedData);
-
-          // Show debug info if available
-          if (parsedData._debug) {
-            console.log(`🔍 Parser method used: ${parsedData._debug.method || 'unknown'}`);
-            console.log(`🔍 Debug info:`, parsedData._debug);
-            // Show each debug log entry for thorough troubleshooting
-            if (parsedData._debug.debugLog) {
-              console.log(`📜 Debug Log Steps:`);
-              parsedData._debug.debugLog.forEach((entry: string, idx: number) => {
-                console.log(`  ${idx + 1}. ${entry}`);
-              });
-            }
-          } else {
-            console.log(`⚠️ No debug info - likely using AI parser`);
-          }
-
-          console.log(`📊 Items found:`, parsedData.items?.length || 0);
-          parsedData.items?.forEach((item: any, idx: number) => {
-            console.log(`  ${idx + 1}. ${item.name} - ${item.quantity}x ${item.price} kr${item.discount ? ` (discount: ${item.discount} kr)` : ''}`);
-          });
 
           // Check for duplicates with fuzzy store name matching
           // Normalize store names to handle variations like "ICA" vs "ICA Nära"
@@ -389,7 +358,6 @@ const Upload = () => {
               if (error) {
                 console.warn('Auto-mapping failed (non-blocking):', error);
               } else if (data?.mapped > 0) {
-                console.log(`🤖 Auto-mapped ${data.mapped} products`);
                 toast.success(`🤖 ${data.mapped} produkter mappades automatiskt`, { duration: 3000 });
               }
             }).catch(err => {
