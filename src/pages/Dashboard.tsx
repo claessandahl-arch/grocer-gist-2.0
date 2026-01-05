@@ -40,6 +40,7 @@ const Dashboard = () => {
       if (error) throw error;
       return data as unknown as MonthlyStat | null;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - dashboard data changes infrequently
   });
 
   // Fetch category breakdown from view
@@ -60,6 +61,7 @@ const Dashboard = () => {
       if (error) throw error;
       return data as unknown as CategoryBreakdownType[] || [];
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - dashboard data changes infrequently
   });
 
   const isLoading = statsLoading || categoriesLoading;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ interface PreviewFile {
 
 const Upload = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -382,6 +384,10 @@ const Upload = () => {
       if (successCount > 0) {
         toast.success(`${successCount} kvitto${successCount > 1 ? 'n' : ''} uppladdade!`);
         setUploadedFiles(prev => [...prev, ...Object.keys(groupedBySource).slice(0, successCount)]);
+
+        // Invalidate Dashboard caches so new receipts show immediately
+        queryClient.invalidateQueries({ queryKey: ['monthly-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['category-breakdown'] });
       }
       if (duplicateCount > 0) {
         toast.info(`${duplicateCount} duplikat hoppades över`);
