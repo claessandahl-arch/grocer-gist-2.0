@@ -5,17 +5,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ArrowLeft, TrendingDown, TrendingUp, Store } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, ArrowLeft, TrendingDown, TrendingUp, Store, Scale, Droplets, Package, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 type PriceComparisonItem = {
   mapped_name: string;
-  quantity_unit: string;
+  category: string;
+  quantity_unit: 'kg' | 'L' | 'st';
+  expected_comparison_unit: 'kg' | 'L' | 'st';
+  missing_expected_unit_data: boolean;
   min_price_per_unit: number;
   avg_price_per_unit: number;
   max_price_per_unit: number;
   best_store_name: string;
   data_points: number;
+  has_reliable_unit_data: boolean;
+};
+
+// Unit badge configuration
+const UNIT_CONFIG = {
+  kg: { icon: Scale, label: 'kr/kg', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  L: { icon: Droplets, label: 'kr/L', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  st: { icon: Package, label: 'kr/st', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 import { PriceHistorySheet } from "@/components/dashboard/PriceHistorySheet";
@@ -85,9 +97,30 @@ export default function PriceComparison() {
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg font-semibold">{item.mapped_name}</CardTitle>
-                  <Badge variant="secondary" className="font-mono">
-                    kr/{item.quantity_unit}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {item.missing_expected_unit_data && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-amber-500">
+                            <AlertTriangle className="h-4 w-4" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Saknar enhetsdata för {item.expected_comparison_unit === 'kg' ? 'viktjämförelse' : 'volumjämförelse'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    {(() => {
+                      const config = UNIT_CONFIG[item.quantity_unit] || UNIT_CONFIG.st;
+                      const Icon = config.icon;
+                      return (
+                        <Badge className={`font-mono gap-1 ${config.color}`}>
+                          <Icon className="h-3 w-3" />
+                          {config.label}
+                        </Badge>
+                      );
+                    })()}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
