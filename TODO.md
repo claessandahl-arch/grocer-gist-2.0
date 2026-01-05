@@ -1,6 +1,6 @@
 # TODO
 
-> **Last session:** 2026-01-05 — Performance optimizations: removed console.log statements (PR #22), added Dashboard staleTime caching (PR #23). Created TECH_STACK.md documentation.
+> **Last session:** 2026-01-06 — Price comparison enhancement Phase 1 (PR #24): category-aware unit normalization, visual indicators. DB migrations deployed.
 
 ## Fixed Bugs ✅
 
@@ -48,6 +48,26 @@
   - Added cache invalidation after receipt upload so new receipts show immediately
 
 ---
+
+## Price Comparison Enhancement 📊
+
+> **Goal:** Intelligent price comparison with kr/kg, kr/L, kr/st based on product category
+
+### Phase 1: Database & Data Model ✅ (PR #24)
+
+- [x] `comparisonUnits.ts` - Category → unit mapping constants
+  - Drinks → kr/L, Meat/Fruit → kr/kg, Yoghurt → kr/st
+  - Normalization helpers (g→kg, ml/cl/dl→L)
+- [x] `product_unit_info` table - Stores unit overrides per product (future admin)
+- [x] `view_price_comparison` - Enhanced with category-aware normalization
+- [x] Visual indicators in UI (⚖️ kg, 💧 L, 📦 st, ⚠️ missing data)
+
+### Future Phases (Pending)
+
+- [ ] **Phase 2:** AI prompt enhancement for better unit extraction
+- [ ] **Phase 3:** Name pattern extractor (fallback for missing AI data)
+- [ ] **Phase 4:** Enhanced UI with unit toggle
+- [ ] **Phase 5:** Admin override view
 
 ## Future Improvements 🚀
 
