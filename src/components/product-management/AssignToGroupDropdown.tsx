@@ -40,14 +40,6 @@ export function AssignToGroupDropdown({
 
   const assignToGroup = useMutation({
     mutationFn: async (groupName: string) => {
-      console.log('[AssignToGroup] Starting assignment:', {
-        productId: product.id,
-        productType: product.type,
-        originalName: product.original_name,
-        targetGroup: groupName,
-        isUnmapped: product.id.startsWith('unmapped-')
-      });
-
       // Find the target group to get its category
       const targetGroup = existingGroups.find(g => g.name === groupName);
       // Get the first category from the set, if any exists
@@ -61,7 +53,6 @@ export function AssignToGroupDropdown({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
-        console.log('[AssignToGroup] Upserting new mapping for unmapped product');
         const { error } = await supabase
           .from('product_mappings')
           .upsert({
@@ -78,11 +69,9 @@ export function AssignToGroupDropdown({
           console.error('[AssignToGroup] Upsert error:', error);
           throw error;
         }
-        console.log('[AssignToGroup] Upsert successful');
       } else {
         // Update existing mapping
         const table = product.type === 'user' ? 'product_mappings' : 'global_product_mappings';
-        console.log('[AssignToGroup] Updating existing mapping in table:', table);
 
         const updatePayload: { mapped_name: string; category?: string } = {
           mapped_name: groupName
@@ -93,8 +82,7 @@ export function AssignToGroupDropdown({
           updatePayload.category = categoryToAssign;
         }
 
-        console.log('[AssignToGroup] Update payload:', updatePayload);
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from(table)
           .update(updatePayload)
           .eq('id', product.id)
@@ -104,11 +92,9 @@ export function AssignToGroupDropdown({
           console.error('[AssignToGroup] Update error:', error);
           throw error;
         }
-        console.log('[AssignToGroup] Update result:', data);
       }
     },
     onSuccess: (_, groupName) => {
-      console.log('[AssignToGroup] Success, calling onAssigned');
       toast.success(`"${product.original_name}" tillagd i gruppen "${groupName}"`);
       setValue("");
       onAssigned();

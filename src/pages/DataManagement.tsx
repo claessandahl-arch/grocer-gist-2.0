@@ -60,7 +60,6 @@ export default function DataManagement() {
         .order('receipt_date', { ascending: false });
 
       if (error) throw error;
-      console.log('[DataManagement] Fetched receipts:', data?.length || 0);
       return data || [];
     },
     refetchOnMount: true, // Force fresh data
@@ -72,7 +71,7 @@ export default function DataManagement() {
     queryKey: ['user-product-mappings', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
+
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let from = 0;
@@ -86,7 +85,7 @@ export default function DataManagement() {
           .range(from, from + PAGE_SIZE - 1);
 
         if (error) throw error;
-        
+
         if (data && data.length > 0) {
           allData = [...allData, ...data];
           from += PAGE_SIZE;
@@ -96,7 +95,6 @@ export default function DataManagement() {
         }
       }
 
-      console.log('[DataManagement] User mappings fetched (paginated):', allData.length);
       return allData.map(m => ({ ...m, type: 'user' as const }));
     },
     enabled: !!user,
@@ -114,7 +112,6 @@ export default function DataManagement() {
         .limit(10000); // Override default 1000 row limit
 
       if (error) throw error;
-      console.log('[DataManagement] Global mappings fetched:', data?.length || 0);
       return data.map(m => ({ ...m, type: 'global' as const, user_id: '' }));
     },
   });
@@ -122,17 +119,13 @@ export default function DataManagement() {
   // Get unique product names from all receipts
   const allProductNames = useMemo(() => {
     const uniqueNames = new Set<string>();
-    console.log('[DataManagement] Processing receipts:', receipts.length);
-    receipts.forEach((receipt, idx) => {
+    receipts.forEach((receipt) => {
       const items = (receipt.items as unknown as ReceiptItem[]) || [];
-      console.log(`[DataManagement] Receipt ${idx + 1}/${receipts.length}: ${items.length} items from ${receipt.store_name || 'unknown store'}`);
       items.forEach(item => {
         if (item.name) uniqueNames.add(item.name);
       });
     });
-    const result = Array.from(uniqueNames);
-    console.log('[DataManagement] Total unique products from receipts:', result.length);
-    return result;
+    return Array.from(uniqueNames);
   }, [receipts]);
 
   // Combine all mappings
@@ -219,13 +212,6 @@ export default function DataManagement() {
       }
     });
 
-    console.log('[DataManagement] Uncategorized products:', uncategorized.length);
-    console.log('[DataManagement] Breakdown:', {
-      totalProducts: allProductNames.length,
-      mappedProducts: allMappings.length,
-      uncategorized: uncategorized.length,
-    });
-
     return uncategorized;
   }, [allProductNames, allMappings]);
 
@@ -271,7 +257,6 @@ export default function DataManagement() {
   // Update category mutation
   const updateCategory = useMutation({
     mutationFn: async ({ id, type, category }: { id: string; type: 'user' | 'global'; category: string }) => {
-      console.log('[DataManagement] updateCategory called:', { id, type, category });
 
       // Check if this is an unmapped product
       const isUnmapped = id.startsWith('unmapped-');
@@ -279,7 +264,6 @@ export default function DataManagement() {
       if (isUnmapped) {
         // Extract product name from ID
         const productName = id.substring('unmapped-'.length);
-        console.log('[DataManagement] Creating new mapping for unmapped product:', productName);
 
         // Create new mapping
         const { data: { user } } = await supabase.auth.getUser();
@@ -292,19 +276,16 @@ export default function DataManagement() {
             original_name: productName,
             mapped_name: productName,
             category: category,
-          }, { 
+          }, {
             onConflict: 'user_id,original_name',
             ignoreDuplicates: false
           });
 
         if (error) {
-          console.error('[DataManagement] Failed to create mapping:', error);
           throw error;
         }
-        console.log('[DataManagement] Successfully created mapping for:', productName);
       } else {
         // Update existing mapping
-        console.log('[DataManagement] Updating existing mapping:', id);
         const table = type === 'user' ? 'product_mappings' : 'global_product_mappings';
         const { error } = await supabase
           .from(table)
@@ -312,14 +293,11 @@ export default function DataManagement() {
           .eq('id', id);
 
         if (error) {
-          console.error('[DataManagement] Failed to update mapping:', error);
           throw error;
         }
-        console.log('[DataManagement] Successfully updated mapping:', id);
       }
     },
     onSuccess: () => {
-      console.log('[DataManagement] Category update successful, invalidating queries');
       queryClient.invalidateQueries({ queryKey: ['product-mappings'] });
       queryClient.invalidateQueries({ queryKey: ['user-product-mappings'] });
       queryClient.invalidateQueries({ queryKey: ['global-product-mappings'] });
@@ -417,7 +395,7 @@ export default function DataManagement() {
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Varning: Du har nått gränsen för produktmappningar ({userMappings.length === 10000 ? 'personliga' : 'globala'}). 
+              Varning: Du har nått gränsen för produktmappningar ({userMappings.length === 10000 ? 'personliga' : 'globala'}).
               Vissa produkter kanske inte visas. Kontakta support om du behöver hantera fler mappningar.
             </AlertDescription>
           </Alert>
