@@ -70,7 +70,10 @@
 - [x] Integrated into ICA Standard parser (2 locations)
 - [x] Edge Function deployed to Supabase
 
-### Future Phases (Pending)
+### Future Phases (⏸️ PAUSED)
+
+> **Note:** Paused on 2026-01-06. Need to promote structured parser to production first.
+> See [`docs/STRUCTURED_PARSER_PROMOTION_PLAN.md`](docs/STRUCTURED_PARSER_PROMOTION_PLAN.md)
 
 - [ ] **Phase 3:** Name pattern extractor (frontend fallback)
 - [ ] **Phase 4:** Enhanced UI with unit toggle
@@ -90,6 +93,12 @@
 - [x] **Hash orphan fix** - Hash now linked to `receipt_id` after receipt creation
   - Added RLS UPDATE policy migration
   - Enables CASCADE delete: deleting receipt removes hash → can re-upload
+
+- [ ] **Promote structured parser to production** 🔥 HIGH PRIORITY
+  - Production currently falls back to AI for all ICA table format receipts
+  - Experimental parser works but is gated behind `parserVersion: 'experimental'`
+  - Need 100% accuracy validation before promoting
+  - **📋 Plan:** [`docs/STRUCTURED_PARSER_PROMOTION_PLAN.md`](docs/STRUCTURED_PARSER_PROMOTION_PLAN.md)
 
 **Known parser limitations** (documented, won't fix):
 - Bundle discounts can result in negative item prices (totals correct)
