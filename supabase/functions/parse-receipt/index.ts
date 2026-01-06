@@ -46,6 +46,70 @@ interface ParsedItem {
   discount?: number;
 }
 
+/**
+ * Extract package size (content_amount, content_unit) from product name
+ * 
+ * Examples:
+ *   "Coca-Cola 1,5l"     → { amount: 1.5, unit: 'L', cleanName: 'Coca-Cola' }
+ *   "Chips OLW 275g"    → { amount: 0.275, unit: 'kg', cleanName: 'Chips OLW' }
+ *   "Mjölk 1L"          → { amount: 1, unit: 'L', cleanName: 'Mjölk' }
+ *   "Köttfärs 800g"     → { amount: 0.8, unit: 'kg', cleanName: 'Köttfärs' }
+ *   "Nocco 33cl"        → { amount: 0.33, unit: 'L', cleanName: 'Nocco' }
+ *   "Yoghurt 500ml"     → { amount: 0.5, unit: 'L', cleanName: 'Yoghurt' }
+ *   "Ris 2kg"           → { amount: 2, unit: 'kg', cleanName: 'Ris' }
+ * 
+ * Returns null if no unit pattern found.
+ */
+function extractContentInfo(productName: string): { amount: number; unit: 'kg' | 'L'; cleanName: string } | null {
+  // Patterns ordered by specificity (most specific first)
+  const patterns: Array<{ regex: RegExp; unit: 'kg' | 'L'; divisor: number }> = [
+    // Kilogram patterns
+    { regex: /(\d+(?:[,.]?\d+)?)\s*kg\b/i, unit: 'kg', divisor: 1 },
+    { regex: /(\d+(?:[,.]?\d+)?)\s*kilo\b/i, unit: 'kg', divisor: 1 },
+
+    // Gram patterns → convert to kg
+    { regex: /(\d+(?:[,.]?\d+)?)\s*g(?:r|ram)?\b/i, unit: 'kg', divisor: 1000 },
+
+    // Liter patterns
+    { regex: /(\d+(?:[,.]?\d+)?)\s*l(?:iter)?\b/i, unit: 'L', divisor: 1 },
+    { regex: /(\d+(?:[,.]?\d+)?)\s*litre\b/i, unit: 'L', divisor: 1 },
+
+    // Deciliter → convert to L
+    { regex: /(\d+(?:[,.]?\d+)?)\s*dl\b/i, unit: 'L', divisor: 10 },
+
+    // Centiliter → convert to L  
+    { regex: /(\d+(?:[,.]?\d+)?)\s*cl\b/i, unit: 'L', divisor: 100 },
+
+    // Milliliter → convert to L
+    { regex: /(\d+(?:[,.]?\d+)?)\s*ml\b/i, unit: 'L', divisor: 1000 },
+  ];
+
+  for (const { regex, unit, divisor } of patterns) {
+    const match = productName.match(regex);
+    if (match) {
+      // Parse the number (handle Swedish comma as decimal)
+      const rawValue = match[1].replace(',', '.');
+      const parsedValue = parseFloat(rawValue);
+
+      if (!isNaN(parsedValue) && parsedValue > 0) {
+        // Calculate normalized amount
+        const amount = parsedValue / divisor;
+
+        // Clean the product name by removing the matched unit
+        const cleanName = productName.replace(match[0], '').trim();
+
+        return {
+          amount: Math.round(amount * 1000) / 1000, // Round to 3 decimals
+          unit,
+          cleanName: cleanName || productName // Fallback to original if empty
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 // Comparison mode types
 interface ItemDiff {
   structuredItem?: ParsedItem;
@@ -181,10 +245,14 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
           console.log(`  📦 Quantity: ${weight} kg`);
           console.log(`  💰 Price: ${price} kr`);
 
+          // For weighted items, the quantity IS the content (e.g., 0.842kg)
           items.push({
             name: productName,
             price: parseFloat(price.toFixed(2)),
             quantity: parseFloat(weight.toFixed(3)),
+            quantity_unit: 'kg',
+            content_amount: parseFloat(weight.toFixed(3)),
+            content_unit: 'kg',
             category: 'other'
           });
 
@@ -243,10 +311,18 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
         category = 'pant';
       }
 
+      // Extract content info (package size) from product name
+      const contentInfo = extractContentInfo(productName);
+
       items.push({
         name: productName,
-        price: parseFloat(price.toFixed(2)), // Round to 2 decimals
-        quantity: parseFloat(quantity.toFixed(3)), // Round to 3 decimals for weights
+        price: parseFloat(price.toFixed(2)),
+        quantity: parseFloat(quantity.toFixed(3)),
+        quantity_unit: 'st',
+        ...(contentInfo && {
+          content_amount: contentInfo.amount,
+          content_unit: contentInfo.unit,
+        }),
         category: category
       });
 
@@ -267,10 +343,18 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
         const price = parseFloat(postScanMatch[2].replace(',', '.'));
         const category = name.toLowerCase().includes('pant') ? 'pant' : 'other';
 
+        // Extract content info (package size) from product name
+        const contentInfo = extractContentInfo(name);
+
         items.push({
           name: name,
           price: parseFloat(price.toFixed(2)),
           quantity: 1,
+          quantity_unit: 'st',
+          ...(contentInfo && {
+            content_amount: contentInfo.amount,
+            content_unit: contentInfo.unit,
+          }),
           category: category
         });
         console.log(`  ✅ Added post-scan item: ${name} (${price} kr)`);
@@ -480,10 +564,18 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
           items.push(currentProduct);
         }
 
+        // Extract content info (package size) from product name
+        const contentInfo = extractContentInfo(name);
+
         currentProduct = {
           name,
           price: total,
           quantity,
+          quantity_unit: unit === 'kg' ? 'kg' : 'st',
+          ...(contentInfo && {
+            content_amount: contentInfo.amount,
+            content_unit: contentInfo.unit,
+          }),
           category: 'other'
         };
 
@@ -1052,12 +1144,20 @@ function parseICAReceiptText(text: string, debugLog: string[] = []): { items: Pa
 
         console.log(`  ✅ Created item: ${productName} (${quantity}x ${finalPrice} kr${discount > 0 ? `, discount: ${discount}` : ''})`);
 
+        // Extract content info (package size) from product name
+        const contentInfo = extractContentInfo(productName);
+
         // Add item (categorization will be done by AI later)
         items.push({
           name: productName,
           article_number: articleNumber,
           price: finalPrice,
           quantity: quantity,
+          quantity_unit: 'st',
+          ...(contentInfo && {
+            content_amount: contentInfo.amount,
+            content_unit: contentInfo.unit,
+          }),
           category: 'other', // Will be categorized by AI
           discount: discount > 0 ? discount : undefined
         });
@@ -1131,11 +1231,19 @@ function parseICAReceiptText(text: string, debugLog: string[] = []): { items: Pa
           }
 
           if (productName) {
+            // Extract content info (package size) from product name
+            const contentInfo = extractContentInfo(productName);
+
             items.push({
               name: productName,
               article_number: articleNumber || undefined,
               price: parseFloat(total.toFixed(2)),
               quantity: parseFloat(quantity.toFixed(3)),
+              quantity_unit: 'st',
+              ...(contentInfo && {
+                content_amount: contentInfo.amount,
+                content_unit: contentInfo.unit,
+              }),
               category: productName.toLowerCase().includes('pant') ? 'pant' : 'other',
               discount: discount > 0 ? discount : undefined
             });
