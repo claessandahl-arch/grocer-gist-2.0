@@ -1,6 +1,6 @@
 # TODO
 
-> **Last session:** 2026-01-06 — Price comparison enhancement Phase 1 (PR #24): category-aware unit normalization, visual indicators. DB migrations deployed.
+> **Last session:** 2026-01-06 — Price comparison Phase 1 & 2 (PRs #24, #25), fixed hash orphan bug, reverted console.log removal for debugging.
 
 ## Fixed Bugs ✅
 
@@ -36,11 +36,9 @@
 
 ## Performance Optimizations ⚡
 
-- [x] **Removed debug console.log statements** (PR #22)
-  - Removed 50+ console.log statements polluting browser console
-  - Files cleaned: `ProductManagement.tsx`, `DataManagement.tsx`, `Upload.tsx`, `UngroupedProductsList.tsx`, `AssignToGroupDropdown.tsx`, `CreateGroupDialog.tsx`
-  - Kept `console.error`/`console.warn` for actual error handling
-  - Project logger utility (`src/lib/logger.ts`) available for development debugging
+- [x] **Removed debug console.log statements** (PR #22) ⚠️ **REVERTED**
+  - Reverted to enable debugging during price comparison development
+  - Will re-remove once feature is stable
 
 - [x] **Dashboard TanStack Query caching** (PR #23)
   - Added `staleTime: 5 * 60 * 1000` to `monthly-stats` and `category-breakdown` queries
@@ -89,7 +87,9 @@
 
 - [x] **ICA Kvantum structured parser** - Fixed! Now supports ICA Kvantum, Nära, Maxi, Supermarket with 94% pass rate
 - [x] **Pantretur validation logging** - Added warning when math doesn't match (PR #18)
-- [ ] **Refactor hash saving flow** - Save hash AFTER receipt creation to prevent orphaned hashes
+- [x] **Hash orphan fix** - Hash now linked to `receipt_id` after receipt creation
+  - Added RLS UPDATE policy migration
+  - Enables CASCADE delete: deleting receipt removes hash → can re-upload
 
 **Known parser limitations** (documented, won't fix):
 - Bundle discounts can result in negative item prices (totals correct)

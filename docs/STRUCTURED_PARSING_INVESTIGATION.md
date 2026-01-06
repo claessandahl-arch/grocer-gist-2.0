@@ -115,7 +115,7 @@ if (response.status === 429) {
 
 ---
 
-## Orphaned Hash Problem
+## Orphaned Hash Problem ✅ FIXED (2026-01-06)
 
 ### Issue
 When a 429 error occurred AFTER the image hash was saved but BEFORE the receipt was created, the hash remained in the database as an "orphan" (receipt_id = NULL).
@@ -123,29 +123,29 @@ When a 429 error occurred AFTER the image hash was saved but BEFORE the receipt 
 ### Impact
 User couldn't re-upload the same receipt - duplicate detection blocked it.
 
-### Current Code Flow (problematic):
+### Root Cause
+1. Hash saved with `receipt_id = NULL` immediately after duplicate check
+2. `receipt_id` was **never updated** after receipt creation
+3. RLS policy for UPDATE was also missing, blocking any attempts to update
+
+### Fix Applied (2026-01-06)
+1. **Upload.tsx**: After receipt is created, update hash with `receipt_id`
+2. **Migration**: Added RLS UPDATE policy to `receipt_image_hashes` table
+
+### New Code Flow:
 ```
 1. Generate hash ✓
 2. Check if hash exists ✓
-3. Save hash immediately (with receipt_id = NULL) ← PROBLEM
-4. Call AI parser... (429 error occurs)
-5. Receipt never created
-6. Hash remains orphaned
+3. Save hash immediately (with receipt_id = NULL)
+4. Call parser
+5. Create receipt
+6. UPDATE hash with receipt_id ← NEW
+7. On receipt delete → hash CASCADE deleted ✓
 ```
 
-### Quick Fix Applied:
+### Cleanup Command (for orphaned hashes from before fix):
 ```sql
 DELETE FROM receipt_image_hashes WHERE receipt_id IS NULL;
-```
-
-### Recommended Permanent Fix:
-Change the flow to save hash AFTER receipt is successfully created:
-```
-1. Generate hash
-2. Check if hash exists (for duplicate detection)
-3. Call AI parser
-4. Create receipt
-5. Save hash WITH receipt_id
 ```
 
 ---
