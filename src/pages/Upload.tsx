@@ -374,8 +374,21 @@ const Upload = () => {
             return;
           }
 
-          // Note: Hash was already saved at the beginning of the upload flow
-          // to ensure it's captured even if old duplicate detection triggers later
+          // Update the hash record with the receipt_id
+          // This enables CASCADE delete when receipt is removed
+          if (receiptHash && insertedReceipt?.id) {
+            const { error: hashUpdateError } = await supabase
+              .from('receipt_image_hashes')
+              .update({ receipt_id: insertedReceipt.id })
+              .eq('user_id', userId)
+              .eq('image_hash', receiptHash);
+
+            if (hashUpdateError) {
+              console.warn('Failed to update hash with receipt_id:', hashUpdateError);
+            } else {
+              console.log(`✅ Hash linked to receipt ${insertedReceipt.id}`);
+            }
+          }
 
           // Auto-map products in the background (fire-and-forget)
           if (parsedData.items && parsedData.items.length > 0) {
