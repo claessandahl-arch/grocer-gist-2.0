@@ -173,9 +173,12 @@ export function UngroupedProductsList({
   };
 
   const handleGroupCreated = () => {
+    console.log('[UngroupedProductsList] handleGroupCreated called');
     setSelectedProducts([]);
     setCreateDialogOpen(false);
+    console.log('[UngroupedProductsList] Calling onRefresh...');
     onRefresh();
+    console.log('[UngroupedProductsList] onRefresh called');
   };
 
   // Intersection Observer for infinite scroll

@@ -83,6 +83,16 @@ export function CreateGroupDialog({
 
   const createGroup = useMutation({
     mutationFn: async () => {
+      console.log('[CreateGroup] Starting with:', {
+        groupName: groupName.trim(),
+        category,
+        selectedProducts: selectedProducts.map(p => ({
+          id: p.id,
+          type: p.type,
+          original_name: p.original_name
+        }))
+      });
+
       if (!groupName.trim()) {
         throw new Error("Gruppnamn krävs");
       }
@@ -94,6 +104,15 @@ export function CreateGroupDialog({
       const unmappedProducts = selectedProducts.filter(p => p.id.startsWith('unmapped-'));
       const mappedUserProducts = selectedProducts.filter(p => !p.id.startsWith('unmapped-') && p.type === 'user');
       const mappedGlobalProducts = selectedProducts.filter(p => !p.id.startsWith('unmapped-') && p.type === 'global');
+
+      console.log('[CreateGroup] Product breakdown:', {
+        unmapped: unmappedProducts.length,
+        mappedUser: mappedUserProducts.length,
+        mappedGlobal: mappedGlobalProducts.length,
+        unmappedIds: unmappedProducts.map(p => p.id),
+        userIds: mappedUserProducts.map(p => p.id),
+        globalIds: mappedGlobalProducts.map(p => p.id)
+      });
 
       const updates: { mapped_name: string; category?: string } = { mapped_name: groupName.trim() };
       if (category !== "none") {
@@ -109,7 +128,8 @@ export function CreateGroupDialog({
           category: category !== "none" ? category : null,
         }));
 
-        const { error: insertError } = await supabase
+        console.log('[CreateGroup] Upserting unmapped products:', newMappings);
+        const { data: upsertData, error: insertError } = await supabase
           .from('product_mappings')
           .upsert(newMappings, {
             onConflict: 'user_id,original_name',
@@ -117,34 +137,58 @@ export function CreateGroupDialog({
           })
           .select();
 
+        console.log('[CreateGroup] Upsert result:', { data: upsertData, error: insertError });
         if (insertError) throw insertError;
+
+        // Verify the data was actually written
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('product_mappings')
+          .select('*')
+          .eq('user_id', user.id)
+          .in('original_name', unmappedProducts.map(p => p.original_name));
+        
+        console.log('[CreateGroup] Verification query result:', { 
+          data: verifyData, 
+          error: verifyError,
+          expected: unmappedProducts.length,
+          found: verifyData?.length || 0
+        });
       }
 
       // Update existing user products
       if (mappedUserProducts.length > 0) {
-        const { error: userError } = await supabase
+        console.log('[CreateGroup] Updating user products with IDs:', mappedUserProducts.map(p => p.id));
+        const { data: updateData, error: userError } = await supabase
           .from('product_mappings')
           .update(updates)
           .in('id', mappedUserProducts.map(p => p.id))
           .select();
 
+        console.log('[CreateGroup] User update result:', { data: updateData, error: userError });
         if (userError) throw userError;
       }
 
       // Update existing global products
       if (mappedGlobalProducts.length > 0) {
-        const { error: globalError } = await supabase
+        console.log('[CreateGroup] Updating global products with IDs:', mappedGlobalProducts.map(p => p.id));
+        const { data: globalData, error: globalError } = await supabase
           .from('global_product_mappings')
           .update(updates)
           .in('id', mappedGlobalProducts.map(p => p.id))
           .select();
 
+        console.log('[CreateGroup] Global update result:', { data: globalData, error: globalError });
         if (globalError) throw globalError;
       }
+
+      console.log('[CreateGroup] All operations completed successfully');
     },
     onSuccess: () => {
+      console.log('[CreateGroup] onSuccess called - about to call onSuccess callback');
       toast.success(`Produktgrupp "${groupName}" skapad med ${selectedProducts.length} produkt${selectedProducts.length !== 1 ? 'er' : ''}!`);
+      console.log('[CreateGroup] Toast shown, now calling parent onSuccess...');
       onSuccess();
+      console.log('[CreateGroup] Parent onSuccess called');
     },
     onError: (error: Error) => {
       console.error('[CreateGroup] onError:', error);
@@ -153,6 +197,7 @@ export function CreateGroupDialog({
   });
 
   const handleCreate = () => {
+    console.log('[CreateGroup] handleCreate called');
     createGroup.mutate();
   };
 

@@ -43,6 +43,7 @@ export default function ProductManagement() {
         .order('receipt_date', { ascending: false });
 
       if (error) throw error;
+      console.log('[ProductManagement] Fetched receipts:', data?.length || 0);
       return data || [];
     },
     refetchOnMount: true, // Force fresh data
@@ -53,6 +54,7 @@ export default function ProductManagement() {
   const { data: userMappings = [], isLoading: userMappingsLoading } = useQuery({
     queryKey: ['user-product-mappings', user?.id],
     queryFn: async () => {
+      console.log('[ProductManagement] Fetching all user mappings with pagination...');
       if (!user) return [];
 
       const PAGE_SIZE = 1000;
@@ -78,6 +80,7 @@ export default function ProductManagement() {
         }
       }
 
+      console.log('[ProductManagement] User mappings fetched (paginated):', allData.length);
       return allData.map(m => ({ ...m, type: 'user' as const }));
     },
     enabled: !!user,
@@ -102,13 +105,18 @@ export default function ProductManagement() {
   // Get unique product names from all receipts
   const allProductNames = useMemo(() => {
     const uniqueNames = new Set<string>();
-    receipts.forEach((receipt) => {
+    console.log('[ProductManagement] Processing receipts:', receipts.length);
+    receipts.forEach((receipt, idx) => {
       const items = (receipt.items as unknown as ReceiptItem[]) || [];
+      console.log(`[ProductManagement] Receipt ${idx + 1}/${receipts.length}: ${items.length} items from ${receipt.store_name || 'unknown store'}`);
       items.forEach(item => {
         if (item.name) uniqueNames.add(item.name);
       });
     });
-    return Array.from(uniqueNames);
+    const result = Array.from(uniqueNames);
+    console.log('[ProductManagement] Total unique products from receipts:', result.length);
+    console.log('[ProductManagement] First 10 products:', result.slice(0, 10));
+    return result;
   }, [receipts]);
 
   // Combine all mappings
@@ -118,12 +126,16 @@ export default function ProductManagement() {
 
   // Get mapped original names (case-insensitive to match Edge Function logic)
   const mappedOriginalNames = useMemo(() => {
-    return new Set(allMappings.map(m => m.original_name.toLowerCase()));
-  }, [allMappings]);
+    const mapped = new Set(allMappings.map(m => m.original_name.toLowerCase()));
+    console.log('[ProductManagement] Total mapped products:', mapped.size);
+    console.log('[ProductManagement] User mappings:', userMappings.length);
+    console.log('[ProductManagement] Global mappings:', globalMappings.length);
+    return mapped;
+  }, [allMappings, userMappings, globalMappings]);
 
   // Get unmapped products (products from receipts that don't have mappings yet)
   const unmappedProducts = useMemo(() => {
-    return allProductNames
+    const result = allProductNames
       .filter(name => !mappedOriginalNames.has(name.toLowerCase()))
       .map(name => ({
         id: `unmapped-${name}`, // Temporary ID for unmapped products
@@ -135,16 +147,26 @@ export default function ProductManagement() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }));
+    console.log('[ProductManagement] Unmapped products (from receipts without mappings):', result.length);
+    return result;
   }, [allProductNames, mappedOriginalNames]);
 
   // Get products with mappings but no group (no mapped_name)
   const mappedButUngrouped = useMemo(() => {
-    return allMappings.filter(m => !m.mapped_name || m.mapped_name.trim() === '');
+    const result = allMappings.filter(m => !m.mapped_name || m.mapped_name.trim() === '');
+    console.log('[ProductManagement] Mapped but ungrouped products:', result.length);
+    return result;
   }, [allMappings]);
 
   // Combine unmapped and mapped-but-ungrouped products
   const ungroupedProducts = useMemo(() => {
-    return [...unmappedProducts, ...mappedButUngrouped];
+    const result = [...unmappedProducts, ...mappedButUngrouped];
+    console.log('[ProductManagement] Total ungrouped products:', result.length);
+    console.log('[ProductManagement] Breakdown:', {
+      unmapped: unmappedProducts.length,
+      mappedButUngrouped: mappedButUngrouped.length
+    });
+    return result;
   }, [unmappedProducts, mappedButUngrouped]);
 
   // Get product groups (unique mapped_name values)
@@ -350,19 +372,25 @@ export default function ProductManagement() {
                   existingGroups={productGroups}
                   isLoading={isLoading}
                   onRefresh={async () => {
+                    console.log('[ProductManagement] onRefresh called - Refreshing after assignment...');
+                    console.log('[ProductManagement] Current user id:', user?.id);
                     // Use exact query key with user id for user mappings
+                    console.log('[ProductManagement] Refetching user-product-mappings...');
                     await queryClient.refetchQueries({
                       queryKey: ['user-product-mappings', user?.id],
                       exact: true,
                     });
+                    console.log('[ProductManagement] Refetching global-product-mappings...');
                     await queryClient.refetchQueries({
                       queryKey: ['global-product-mappings'],
                       exact: true,
                     });
+                    console.log('[ProductManagement] Refetching receipts-all...');
                     await queryClient.refetchQueries({
                       queryKey: ['receipts-all'],
                       exact: true,
                     });
+                    console.log('[ProductManagement] All refetches complete');
                   }}
                 />
               </div>
@@ -376,6 +404,7 @@ export default function ProductManagement() {
                   allGroups={productGroups}
                   isLoading={isLoading}
                   onRefresh={async () => {
+                    console.log('[ProductManagement] onRefresh called - Refreshing after group change...');
                     await queryClient.refetchQueries({
                       queryKey: ['user-product-mappings', user?.id],
                       exact: true,
@@ -388,6 +417,7 @@ export default function ProductManagement() {
                       queryKey: ['receipts-all'],
                       exact: true,
                     });
+                    console.log('[ProductManagement] All refetches complete');
                   }}
                 />
               </div>
