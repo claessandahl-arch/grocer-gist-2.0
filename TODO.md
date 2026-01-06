@@ -62,10 +62,19 @@
 - [x] `view_price_comparison` - Enhanced with category-aware normalization
 - [x] Visual indicators in UI (⚖️ kg, 💧 L, 📦 st, ⚠️ missing data)
 
+### Phase 2: Structured Parser Unit Extraction ✅ (PR #25)
+
+- [x] `extractContentInfo()` helper - extracts package sizes from product names
+  - `g/gr/gram → kg`, `ml/cl/dl → L`
+  - Swedish comma handling (1,5l → 1.5L)
+- [x] Integrated into Willys parser (3 locations)
+- [x] Integrated into ICA Kvantum parser
+- [x] Integrated into ICA Standard parser (2 locations)
+- [x] Edge Function deployed to Supabase
+
 ### Future Phases (Pending)
 
-- [ ] **Phase 2:** AI prompt enhancement for better unit extraction
-- [ ] **Phase 3:** Name pattern extractor (fallback for missing AI data)
+- [ ] **Phase 3:** Name pattern extractor (frontend fallback)
 - [ ] **Phase 4:** Enhanced UI with unit toggle
 - [ ] **Phase 5:** Admin override view
 
