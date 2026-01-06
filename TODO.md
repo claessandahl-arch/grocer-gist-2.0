@@ -1,6 +1,6 @@
 # TODO
 
-> **Last session:** 2026-01-06 — Price comparison Phase 1 & 2 (PRs #24, #25), fixed hash orphan bug, reverted console.log removal for debugging.
+> **Last session:** 2026-01-06 — Hash orphan fix, download logs feature in BulkTester, documentation updates. Price Comparison ⏸️ paused pending parser promotion.
 
 ## Fixed Bugs ✅
 
@@ -100,10 +100,16 @@
   - Need 100% accuracy validation before promoting
   - **📋 Plan:** [`docs/STRUCTURED_PARSER_PROMOTION_PLAN.md`](docs/STRUCTURED_PARSER_PROMOTION_PLAN.md)
 
+- [x] **BulkTester download logs feature** ✨ NEW
+  - "Ladda ner loggar" button downloads combined markdown report
+  - Contains summary, per-receipt results, items, and debug logs
+  - Useful for sharing parser issues for debugging
+
 **Known parser limitations** (documented, won't fix):
 - Bundle discounts can result in negative item prices (totals correct)
 - Bundle offer names (e.g. "4F25") may append to product names
 - Some Pantretur totals don't match unit × qty
+- Gemini API rate limit: 15 requests/minute (use Snabbläge for bulk testing)
 
 **📋 Full details**: See [`docs/AAA_PARSING_TRAINING.md`](docs/AAA_PARSING_TRAINING.md)
 
