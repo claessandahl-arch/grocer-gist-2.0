@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap, Download } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { ComparisonView } from "./ComparisonView";
 
@@ -339,6 +339,124 @@ export function BulkTester() {
         ? Math.round(((currentIndex + 1) / files.length) * 100)
         : 0;
 
+    // Generate and download combined logs as markdown
+    const downloadCombinedLogs = useCallback(() => {
+        if (results.length === 0) return;
+
+        const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+        let content = `# Bulk Test Report\n`;
+        content += `**Generated:** ${now}\n\n`;
+
+        // Summary section
+        content += `## Summary\n\n`;
+        content += `| Metric | Value |\n`;
+        content += `|--------|-------|\n`;
+        content += `| Total Receipts | ${summary.total} |\n`;
+        content += `| Passed | ${summary.passed} (${passRate}%) |\n`;
+        content += `| Failed | ${summary.failed} |\n`;
+        content += `| Errors | ${summary.errors} |\n`;
+        content += `| Avg Time | ${summary.avgTime.toFixed(1)}s |\n`;
+        content += `\n---\n\n`;
+
+        // Individual results
+        for (const result of results) {
+            const statusIcon = result.status === 'passed' ? '✅'
+                : result.status === 'failed' ? '❌'
+                    : result.status === 'error' ? '⚠️'
+                        : '⏳';
+
+            content += `## ${statusIcon} ${result.filename}\n\n`;
+            content += `**Status:** ${result.status.toUpperCase()}\n`;
+            content += `**Match Rate:** ${result.matchRate}%\n`;
+            content += `**Timing:** ${(result.timing / 1000).toFixed(2)}s\n`;
+
+            if (result.errorMessage) {
+                content += `**Error:** ${result.errorMessage}\n`;
+            }
+            content += `\n`;
+
+            // Comparison data (if available)
+            if (result.comparison) {
+                const comp = result.comparison;
+
+                // Structured parser results
+                if (comp.structured) {
+                    content += `### Structured Parser\n\n`;
+                    content += `| Field | Value |\n`;
+                    content += `|-------|-------|\n`;
+                    content += `| Store | ${comp.structured.store_name} |\n`;
+                    content += `| Total | ${comp.structured.total_amount} kr |\n`;
+                    content += `| Date | ${comp.structured.receipt_date} |\n`;
+                    content += `| Items | ${comp.structured.items.length} |\n`;
+                    content += `| Parse Time | ${comp.structured.timing}ms |\n`;
+                    content += `\n`;
+
+                    // Items list
+                    content += `#### Items\n\n`;
+                    content += `| # | Name | Price | Qty |\n`;
+                    content += `|---|------|-------|-----|\n`;
+                    comp.structured.items.forEach((item, idx) => {
+                        content += `| ${idx + 1} | ${item.name} | ${item.price} kr | ${item.quantity} |\n`;
+                    });
+                    content += `\n`;
+                } else {
+                    content += `### Structured Parser\n\n`;
+                    content += `*No structured result available*\n\n`;
+                }
+
+                // AI parser results (if in comparison mode)
+                if (comp.ai) {
+                    content += `### AI Parser\n\n`;
+                    content += `| Field | Value |\n`;
+                    content += `|-------|-------|\n`;
+                    content += `| Store | ${comp.ai.store_name} |\n`;
+                    content += `| Total | ${comp.ai.total_amount} kr |\n`;
+                    content += `| Date | ${comp.ai.receipt_date} |\n`;
+                    content += `| Items | ${comp.ai.items.length} |\n`;
+                    content += `| Parse Time | ${comp.ai.timing}ms |\n`;
+                    content += `\n`;
+                }
+
+                // Diff summary
+                if (comp.diff) {
+                    content += `### Comparison Diff\n\n`;
+                    content += `| Metric | Value |\n`;
+                    content += `|--------|-------|\n`;
+                    content += `| Match Rate | ${comp.diff.matchRate}% |\n`;
+                    content += `| Price Accuracy | ${comp.diff.priceAccuracy}% |\n`;
+                    content += `| Structured Items | ${comp.diff.itemCount.structured} |\n`;
+                    content += `| AI Items | ${comp.diff.itemCount.ai} |\n`;
+                    content += `\n`;
+                }
+
+                // Debug log
+                if (comp._debug?.debugLog && comp._debug.debugLog.length > 0) {
+                    content += `### Debug Log\n\n`;
+                    content += `\`\`\`\n`;
+                    comp._debug.debugLog.forEach((line, idx) => {
+                        content += `${idx + 1}. ${line}\n`;
+                    });
+                    content += `\`\`\`\n`;
+                }
+            }
+
+            content += `\n---\n\n`;
+        }
+
+        // Create and download file
+        const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bulk-test-logs-${Date.now()}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success('Loggar nedladdade!');
+    }, [results, summary, passRate]);
+
     return (
         <div className="space-y-6">
             {/* Upload Section */}
@@ -497,6 +615,18 @@ export function BulkTester() {
                                     <div className="text-3xl font-bold">{summary.avgTime.toFixed(1)}s</div>
                                     <div className="text-sm text-muted-foreground">Snitt tid</div>
                                 </div>
+                            </div>
+                            {/* Download logs button */}
+                            <div className="mt-4 pt-4 border-t flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={downloadCombinedLogs}
+                                    disabled={processing}
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Ladda ner loggar
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
