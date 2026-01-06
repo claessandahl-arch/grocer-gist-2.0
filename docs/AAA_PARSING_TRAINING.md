@@ -130,17 +130,99 @@ After fix: "Blåmusslor färska 209193290000079 ,001,00 st 316,00"
 - Production always uses `'current'`, training can use any version
 - Debug output shows which version was used
 
-### 3. Orphaned Hash Problem
+### 3. Orphaned Hash Problem ✅ FIXED (2026-01-06)
 
 Hash is saved BEFORE receipt creation. If parsing fails (429 error), hash remains orphaned, blocking re-upload.
 
-**Status:** Not yet fixed
+**Solution implemented:**
+- After receipt is created, hash is updated with `receipt_id`
+- Added RLS UPDATE policy migration
+- CASCADE delete now works: deleting receipt removes hash
 
 ### 4. Slow AI Fallback
 
 Even with `reasoning_effort: 'none'`, AI parsing takes ~10-27 seconds. Structured parser is <1 second.
 
 **Mitigation:** ICA Kvantum parser now working, reduces AI fallback frequency.
+
+---
+
+## Bulk Test Findings (2026-01-06)
+
+### Test Summary
+
+| Metric | Value |
+|--------|-------|
+| Total Receipts | 38 |
+| Passed | 35 (92%) |
+| Failed | 3 |
+| Avg Time | 15.4s |
+
+### Failed Receipt Analysis
+
+All 3 failures share the same root cause: **multi-item bundle discounts** where the discount applies to multiple products but the parser only tracks one.
+
+---
+
+#### ❌ Failure 1: `ICA Nära Älvsjö 2025-10-31 (1).pdf` — 90.9% Match
+
+**Issue:** "Donut/Munk 4F30" bundle offer on separate line
+
+```
+Line 25: *Donuts → 13.9 kr
+Line 26: *Donuts → 13.9 kr  
+Line 27: "Donut/Munk 4F30" → ⏭️ Skipped (no pattern match)
+Line 28: -25.60 discount → applied to 2nd Donuts only → -11.7 kr (NEGATIVE!)
+```
+
+**Result:**
+- Structured: `Donuts: -11.7 kr` ❌ (negative price)
+- AI: `Donuts: 13.90 kr` with separate discount lines ✅
+
+---
+
+#### ❌ Failure 2: `ICA Kvantum Kungens Kurva 2025-10-05.pdf` — 97.9% Match
+
+**Issue:** "Bas/Koriander 2F35" bundle offer skipped
+
+```
+Line 48: *Koriander kruka → 39.9 kr
+Line 49: "Bas/Koriander 2F35" → ⏭️ Skipped (no pattern match)
+```
+
+**Also:** `Ätmogen Avokado Avstämning korrekt.` — garbage text appended to product name
+
+---
+
+#### ❌ Failure 3: `ICA Nära Älvsjö 2025-10-12.pdf` — 75% Match
+
+**Issue:** "Småfrallor 5F30:-" bundle offer
+
+```
+Line 24: *Sportfralla → 8.9 kr
+Line 25: "Småfrallor 5F30:-" → ⏭️ Skipped (no pattern match)
+Line 26: -14.50 discount → applied → -5.6 kr (NEGATIVE!)
+```
+
+**Result:** `Sportfralla: -5.6 kr` — negative price
+
+---
+
+### Recommended Fix
+
+The parser needs to handle offer lines like `"Donut/Munk 4F30"` and `"Småfrallor 5F30:-"` as **name continuations** rather than skipping them. This would prevent the subsequent discount from creating negative prices.
+
+**Pattern to recognize:**
+```regex
+/^[A-Za-zÀ-ÿ\/\s]+\d+[Ff]\d+:?-?$/
+```
+
+Examples:
+- `Donut/Munk 4F30`
+- `Bas/Koriander 2F35`
+- `Småfrallor 5F30:-`
+
+**Status:** 🔶 Pending — more test data being collected
 
 ---
 
