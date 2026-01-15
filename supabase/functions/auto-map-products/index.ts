@@ -29,15 +29,37 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, products, previewOnly } = await req.json() as {
-      userId: string;
+    const { products, previewOnly } = await req.json() as {
       products: ProductToMap[];
       previewOnly?: boolean;
     };
 
-    if (!userId) {
-      throw new Error("userId is required");
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Verify user is authenticated
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = user.id;
 
     if (!products || products.length === 0) {
       return new Response(
@@ -47,11 +69,6 @@ serve(async (req) => {
     }
 
     console.log(`[auto-map-products] Processing ${products.length} products for user ${userId}`);
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch existing user mappings
     const { data: userMappings, error: userError } = await supabase
