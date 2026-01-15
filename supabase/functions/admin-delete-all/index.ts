@@ -44,6 +44,24 @@ serve(async (req) => {
       );
     }
 
+    // Security Check: Verify user is the designated admin
+    const ADMIN_EMAIL = Deno.env.get('ADMIN_EMAIL');
+    if (!ADMIN_EMAIL) {
+      console.error('SERVER CONFIGURATION ERROR: ADMIN_EMAIL secret is not set');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: ADMIN_EMAIL not set' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (user.email !== ADMIN_EMAIL) {
+      console.warn(`⛔ Unauthorized admin access attempt by: ${user.email}`);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Admin privileges required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`🔐 Admin delete requested by user: ${user.email}`);
 
     const { action } = await req.json();
@@ -70,8 +88,8 @@ serve(async (req) => {
       console.log(`✅ Deleted ${beforeCount} receipts`);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: `Deleted ${beforeCount} receipts from all users`,
           deletedCount: beforeCount
         }),
@@ -84,7 +102,7 @@ serve(async (req) => {
 
       // Delete in order of dependencies
       const tables = [
-        'receipts', 
+        'receipts',
         'product_mappings',
         'user_global_overrides',
         'store_patterns'
@@ -115,8 +133,8 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: 'Deleted all user data',
           deletedCounts: results
         }),
