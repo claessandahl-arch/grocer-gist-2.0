@@ -1,6 +1,6 @@
 # TODO
 
-> **Last session:** 2026-01-06 — Hash orphan fix, download logs feature in BulkTester, documentation updates. Price Comparison ⏸️ paused pending parser promotion.
+> **Last session:** 2026-01-17 — Fixed Price Comparison search filter bug (PR #27), added comprehensive documentation (`docs/PRICE_COMPARISON.md`)
 
 ## Fixed Bugs ✅
 
@@ -24,6 +24,30 @@
     1. PR #20: Updated Edge Functions to use canonical Swedish keys from `categoryConstants.ts`
     2. PR #21: Database migration to convert all English keys to Swedish
   - **meat_fish split:** Lax/Laxfilé → `fisk_skaldjur`, all meat → `kott_fagel_chark`
+
+- [x] **Price Comparison search filter not updating UI** (PR #27)
+  - **Symptom:** Typing in search showed correct `filteredItems` count in React state, but UI displayed 60+ products instead of matching ones
+  - **Root cause:** Duplicate React keys from database duplicates caused reconciliation failures
+    - `view_price_comparison` returned duplicates (same `mapped_name + quantity_unit`)
+    - Keys like `"Coca-cola-st"` appeared multiple times
+    - React lost track of DOM nodes → orphaned cards remained visible
+  - **Fix:** Added array index to key: `key={item-${index}-...}` for guaranteed uniqueness
+  - **Docs:** Created `docs/PRICE_COMPARISON.md` with comprehensive feature documentation
+
+## Security Fixes 🔒
+
+- [ ] **Fix "Security Definer View" warnings** (Supabase Security Advisor)
+  - **Issue:** Views executing with owner permissions instead of invoker permissions.
+  - **Affected Views:**
+    - `public.view_store_comparison`
+    - `public.view_price_comparison`
+    - `public.view_user_basket`
+    - `public.view_monthly_stats`
+    - `public.view_store_savings_summary`
+    - `public.view_category_breakdown`
+    - `public.view_product_store_prices`
+    - `public.view_store_recommendations`
+  - **Action:** Review and potentially change to `SECURITY INVOKER` or audit permissions.
 
 ## Known Bugs 🐛
 
