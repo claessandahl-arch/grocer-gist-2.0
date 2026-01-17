@@ -52,9 +52,12 @@ export default function PriceComparison() {
     gcTime: 0, // Don't cache
   });
 
+  // Client-side search filter - case-insensitive partial match on product name
+  // This derives filtered list from the full items array on each render
   const filteredItems = items?.filter(item =>
     item.mapped_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
 
   return (
     <div className="container mx-auto p-4 space-y-6 max-w-6xl pb-20">
@@ -80,6 +83,7 @@ export default function PriceComparison() {
         />
       </div>
 
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map(i => (
@@ -88,9 +92,16 @@ export default function PriceComparison() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems?.map((item) => (
+          {/* 
+            IMPORTANT: Key includes index to ensure uniqueness.
+            The database view may return duplicate mapped_name + quantity_unit combinations.
+            Without the index, duplicate React keys cause reconciliation failures
+            and the UI won't update correctly when filtering.
+            See: docs/PRICE_COMPARISON.md for full explanation.
+          */}
+          {filteredItems?.map((item, index) => (
             <Card
-              key={`${item.mapped_name}-${item.quantity_unit}`}
+              key={`item-${index}-${item.mapped_name}-${item.quantity_unit}`}
               className="hover:shadow-md transition-shadow border-l-4 border-l-primary cursor-pointer active:scale-[0.98] transition-transform"
               onClick={() => setSelectedProduct({ name: item.mapped_name, unit: item.quantity_unit })}
             >
