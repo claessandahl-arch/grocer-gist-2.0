@@ -1,0 +1,1 @@
+../../.opencode/commands/fix-direct-commit.md

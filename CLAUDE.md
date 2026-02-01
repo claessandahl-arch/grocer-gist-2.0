@@ -67,6 +67,23 @@ supabase functions deploy
 - `SUPABASE_URL` - Auto-injected
 - `SUPABASE_SERVICE_ROLE_KEY` - For admin operations
 
+### Edge Function Security 🔒
+
+All Edge Functions MUST adhere to these security rules:
+
+1.  **Strict Authentication**:
+    -   NEVER trust `userId` from the request body.
+    -   ALWAYS verify the user via `supabase.auth.getUser(req.headers.get('Authorization'))`.
+    -   Use `user.id` from the validated JWT for all operations.
+
+2.  **Service Role Usage**:
+    -   Use `SUPABASE_SERVICE_ROLE_KEY` only when necessary (e.g., admin tasks, writing across RLS).
+    -   Instantiate the admin client **inside** the function, only **after** verifying the user's identity.
+
+3.  **Input Validation**:
+    -   Validate all inputs (e.g., `products` array, `previewOnly` flag) before processing.
+
+
 ## Git Workflow
 
 **IMPORTANT**: Follow these rules for all changes:

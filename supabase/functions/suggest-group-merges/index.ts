@@ -21,13 +21,39 @@ serve(async (req) => {
     try {
         console.log('[suggest-group-merges] Starting request...');
 
-        const { userId, groups } = await req.json() as { userId: string; groups: ProductGroup[] };
+        // Verify user is authenticated
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            return new Response(
+                JSON.stringify({ error: 'No authorization header' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // Initialize Supabase client
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(supabaseUrl, supabaseKey);
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser(
+            authHeader.replace('Bearer ', '')
+        );
+
+        if (authError || !user) {
+            return new Response(
+                JSON.stringify({ error: 'Unauthorized' }),
+                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        const { groups } = await req.json() as { groups: ProductGroup[] };
+        const userId = user.id;
         console.log(`[suggest-group-merges] Received request - userId: ${userId}, groups count: ${groups?.length || 0}`);
 
-        if (!userId || !groups || !Array.isArray(groups)) {
+        if (!groups || !Array.isArray(groups)) {
             console.log('[suggest-group-merges] Validation failed - missing required fields');
             return new Response(
-                JSON.stringify({ error: 'Missing required fields: userId, groups (array)' }),
+                JSON.stringify({ error: 'Missing required field: groups (array)' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
