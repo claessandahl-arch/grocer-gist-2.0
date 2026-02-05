@@ -21,6 +21,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface ParserDebugInfo {
+  method?: string;
+  items_found?: number;
+  lines_processed?: number;
+  multiline_count?: number;
+  discount_count?: number;
+  pant_count?: number;
+  parserVersion?: string;
+  pdf_text_length?: number;
+  debugLog?: string[];
+  [key: string]: unknown;
+}
+
 interface ItemPattern {
   category: string;
   name_pattern: string;
@@ -44,6 +57,11 @@ interface ParsedItem {
   unit_price?: number;
   category: string;
   discount?: number;
+}
+
+interface WorkingParsedItem extends ParsedItem {
+  _expectsDiscount?: boolean;
+  _isCoupon?: boolean;
 }
 
 /**
@@ -117,8 +135,8 @@ interface ItemDiff {
   matchType: 'exact' | 'name_match' | 'fuzzy' | 'price_match' | 'unmatched_structured' | 'unmatched_ai';
   differences: {
     field: 'name' | 'price' | 'quantity' | 'category' | 'discount';
-    structured: any;
-    ai: any;
+    structured: string | number | undefined;
+    ai: string | number | undefined;
   }[];
 }
 
@@ -159,7 +177,7 @@ interface ComparisonResult {
  * Willys format: [Product Name] [Quantity*Price] [Total]
  * No article numbers, simpler layout
  */
-function parseWillysReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
+function parseWillysReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: ParserDebugInfo } | null {
   try {
     debugLog.push('📋 Willys Parser Starting...');
     debugLog.push(`  📄 Text length: ${text.length} chars`);
@@ -194,7 +212,7 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
     let i = startIdx + 1;
 
     while (i < endIdx) {
-      let line = lines[i];
+      const line = lines[i];
       console.log(`\n🔍 Line ${i}: "${line}"`);
 
       // Check for Willys Plus discount line (format: "  Willys Plus:DESCRIPTION -20,00")
@@ -424,7 +442,7 @@ function preprocessICAText(text: string): string {
  * - Standalone Pant (deposit) lines
  * - Discount lines that modify the previous product
  */
-function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
+function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: ParserDebugInfo } | null {
   try {
     debugLog.push('📋 ICA Kvantum Parser Starting...');
 
@@ -581,7 +599,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
         // Store whether this product expects a discount line
         if (hasDiscountMarker) {
-          (currentProduct as any)._expectsDiscount = true;
+          (currentProduct as WorkingParsedItem)._expectsDiscount = true;
         }
 
         matchedLines++;
@@ -599,10 +617,10 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         const discount = Math.abs(parseFloat(discountOnlyMatch[1].replace(',', '.')));
 
         // Check if this is a coupon discount
-        if ((currentProduct as any)._isCoupon) {
+        if ((currentProduct as WorkingParsedItem)._isCoupon) {
           // Coupon: set price to negative discount (it's a receipt-level discount)
           currentProduct.price = -discount;
-          delete (currentProduct as any)._isCoupon;
+          delete (currentProduct as WorkingParsedItem)._isCoupon;
           matchedLines++;
           debugLog.push(`  Line ${i}: "${linePreview}"`);
           debugLog.push(`    🎟️ Coupon discount: -${discount} kr`);
@@ -613,7 +631,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         currentProduct.discount = (currentProduct.discount || 0) + discount;
         currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
         // Clear the expects discount flag now that discount is applied
-        delete (currentProduct as any)._expectsDiscount;
+        delete (currentProduct as WorkingParsedItem)._expectsDiscount;
         discountCount++;
         matchedLines++;
         expectingPantValues = false;
@@ -624,7 +642,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
 
       // === PATTERN 3: Brand/continuation + discount line ===
       // Lines like "OLW 4F89 -40,80" or "Chokladkaka 2F60 -3,90"
-      const brandDiscountMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%\.]+?)\s+(-\d+[,.]\d+)$/);
+      const brandDiscountMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\d\-&%.]+?)\s+(-\d+[,.]\d+)$/);
 
       if (brandDiscountMatch && currentProduct) {
         const brandText = brandDiscountMatch[1].trim();
@@ -663,11 +681,11 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
           name: line,
           price: 0,
           quantity: 1,
-          category: 'discount' as any
+          category: 'discount'
         };
 
         // Mark that we expect a discount on the next line
-        (currentProduct as any)._isCoupon = true;
+        (currentProduct as WorkingParsedItem)._isCoupon = true;
 
         matchedLines++;
         debugLog.push(`  Line ${i}: "${linePreview}"`);
@@ -789,7 +807,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       // Sometimes the "Pant" header line isn't detected, but we can identify Pant values
       // by their characteristic format: "1,0011,00" or "2,0024,00" (merged price+qty+total)
       const orphanPantMatch = line.match(/^(\d+[,.]\d{2})(\d)(\d+[,.]\d{2})$/);
-      if (orphanPantMatch && !(currentProduct as any)?._expectsDiscount) {
+      if (orphanPantMatch && !(currentProduct as WorkingParsedItem)?._expectsDiscount) {
         // Looks like Pant values - check if reasonable (unit price 1-5 kr, qty 1-20)
         const unitPrice = parseFloat(orphanPantMatch[1].replace(',', '.'));
         const qty = parseInt(orphanPantMatch[2]);
@@ -935,7 +953,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
  * Parse structured ICA receipt text directly
  * Returns null if parsing fails (fall back to AI)
  */
-function parseICAReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: any } | null {
+function parseICAReceiptText(text: string, debugLog: string[] = []): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: ParserDebugInfo } | null {
   try {
     debugLog.push('📋 ICA Standard Parser Starting...');
     debugLog.push(`  📄 Text length: ${text.length} chars`);
@@ -1653,7 +1671,7 @@ serve(async (req) => {
     // Try structured parsing first if we have raw PDF text
     // Skip structured parsing if parserVersion is 'ai_only'
     // For comparison mode, we run both parsers
-    let structuredResult: { items: ParsedItem[]; store_name?: string; _debug?: any } | null = null;
+    let structuredResult: { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: ParserDebugInfo } | null = null;
     let structuredTiming = 0;
     let textUsedForParsing = rawPdfText;
 
@@ -2365,7 +2383,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
       const priceAccuracy = totalMatched > 0 ? (priceAccurateCount / totalMatched) * 100 : 0;
 
       const structuredTotal = structuredItems.reduce((sum, item) => sum + item.price, 0);
-      const aiTotal = parsedData.total_amount || aiItems.reduce((sum: number, item: any) => sum + item.price, 0);
+      const aiTotal = parsedData.total_amount || aiItems.reduce((sum: number, item: ParsedItem) => sum + item.price, 0);
 
       const comparisonResponse: ComparisonResult = {
         mode: 'comparison',
