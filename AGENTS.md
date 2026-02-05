@@ -83,6 +83,7 @@ Before submitting a PR:
 
 ### TypeScript Rules
 - **Strictness**: Relaxed (`noImplicitAny: false` in `tsconfig.json`). Strive for type safety but respect existing loose patterns.
+- **Avoid `any`**: Prefer defining specific interfaces (even if temporary) over using `any` to avoid technical debt.
 - **Imports**: Use `@/` alias for `src/` (e.g., `import { Button } from "@/components/ui/button"`).
 - **Order**:
     1. React / Standard Libs
