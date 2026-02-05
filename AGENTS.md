@@ -40,6 +40,13 @@ If a feature requires external configuration (Supabase Dashboard, Vercel, etc.):
 2. **Documentation:** Create a reference doc in `.opencode/reference/` if the steps are complex.
 3. **Validation:** Explicitly state if the feature is "broken until configured" in the Execution Report.
 
+### Verification Checklist
+Before submitting a PR:
+1. [ ] **Routes**: Verify all new navigation URLs exist (grep for `navigate()` calls).
+2. [ ] **Build**: Run `npm run build` locally.
+3. [ ] **Database**: If using RPCs, verify PostgREST compatibility (no default params).
+4. [ ] **Secrets**: Ensure no secrets are committed.
+
 ## 3. Development Commands
 
 | Task | Command | Description |
@@ -88,6 +95,10 @@ If a feature requires external configuration (Supabase Dashboard, Vercel, etc.):
 - **Routing**: Add new routes in `App.tsx` *above* the catch-all `*` route. Lazy load using `React.lazy`.
 - **Styling**: Use Tailwind utility classes. Use `cn()` (`clsx` + `tailwind-merge`) for conditional classes.
 - **Supabase**: Use `src/integrations/supabase/client.ts`. Respect RLS.
+- **PostgREST RPCs**: 
+    - No default parameters (PostgREST requirement).
+    - Set `search_path = public, auth` if using `auth.uid()`.
+    - Use CTEs instead of nesting set-returning functions in aggregates.
 - **TanStack Query**: Use `staleTime: 0` for volatile data, `staleTime: 5 mins` for stable data.
 
 ## 5. Agent Protocol
