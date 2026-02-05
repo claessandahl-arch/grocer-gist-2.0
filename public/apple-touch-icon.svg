@@ -1,0 +1,34 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: Brand Primary Color (Teal/Cyan) -->
+  <rect width="512" height="512" fill="#1DC9D1"/>
+  
+  <!-- Receipt Paper -->
+  <path d="M128 96C128 87.1634 135.163 80 144 80H368C376.837 80 384 87.1634 384 96V432L352 400L320 432L288 400L256 432L224 400L192 432L160 400L128 432V96Z" fill="white"/>
+  
+  <!-- Receipt Lines (Text Placeholders) -->
+  <!-- Header -->
+  <rect x="168" y="128" width="176" height="24" rx="4" fill="#E2E8F0"/>
+  
+  <!-- Divider -->
+  <rect x="152" y="176" width="208" height="2" fill="#CBD5E1"/>
+  
+  <!-- Items -->
+  <rect x="160" y="208" width="120" height="16" rx="2" fill="#F1F5F9"/>
+  <rect x="320" y="208" width="32" height="16" rx="2" fill="#F1F5F9"/>
+  
+  <rect x="160" y="248" width="100" height="16" rx="2" fill="#F1F5F9"/>
+  <rect x="320" y="248" width="32" height="16" rx="2" fill="#F1F5F9"/>
+  
+  <rect x="160" y="288" width="140" height="16" rx="2" fill="#F1F5F9"/>
+  <rect x="320" y="288" width="32" height="16" rx="2" fill="#F1F5F9"/>
+  
+  <!-- Divider -->
+  <rect x="152" y="336" width="208" height="2" fill="#CBD5E1"/>
+  
+  <!-- Total -->
+  <rect x="160" y="360" width="60" height="24" rx="2" fill="#94A3B8"/>
+  <rect x="296" y="360" width="56" height="24" rx="2" fill="#1DC9D1"/>
+  
+  <!-- Shadow/Depth (Subtle) -->
+  <path d="M128 432L160 400L192 432L224 400L256 432L288 400L320 432L352 400L384 432V440L352 408L320 440L288 408L256 440L224 408L192 440L160 408L128 440V432Z" fill="black" fill-opacity="0.1"/>
+</svg>
