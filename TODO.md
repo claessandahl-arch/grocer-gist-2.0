@@ -137,6 +137,10 @@
 
 **📋 Full details**: See [`docs/AAA_PARSING_TRAINING.md`](docs/AAA_PARSING_TRAINING.md)
 
+- [ ] **Fix linting errors in `supabase/functions/parse-receipt/index.ts`** (See `.opencode/reference/LINTING_FIXES_PARSE_RECEIPT.md`)
+  - 44 identified issues (mostly explicit `any` usage)
+  - Plan includes new interfaces and stricter types
+
 ### Optional Enhancements
 
 - [x] **Dev Toolbar for hidden route navigation** ⭐

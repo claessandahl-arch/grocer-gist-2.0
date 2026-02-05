@@ -19,6 +19,7 @@ const ProductManagement = lazy(() => import("./pages/ProductManagement"));
 const PriceComparison = lazy(() => import("./pages/PriceComparison"));
 const StoreRecommendations = lazy(() => import("./pages/StoreRecommendations"));
 const Diagnostics = lazy(() => import("./pages/Diagnostics")); // Changed from DiagnosticTool to Diagnostics
+const Wrapped = lazy(() => import("./pages/Wrapped"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/price-comparison" element={<PriceComparison />} />
               <Route path="/store-recommendations" element={<StoreRecommendations />} />
               <Route path="/diagnostics" element={<Diagnostics />} /> {/* Changed route path and component */}
+              <Route path="/wrapped" element={<Wrapped />} />
               <Route path="/auth" element={<Auth />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

@@ -60,6 +60,7 @@ export function Navigation() {
     { to: "/datamanagement", label: "Data Management" },
     { to: "/product-management", label: "Products" },
     { to: "/price-comparison", label: "Prisjämförelse" },
+    { to: "/wrapped", label: "🎉 Wrapped" },
   ];
 
   return (
