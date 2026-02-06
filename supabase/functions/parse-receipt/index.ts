@@ -172,6 +172,13 @@ interface ComparisonResult {
   };
 }
 
+function logHexCodes(text: string): string {
+  return text.split('').map(c => {
+    const hex = c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0');
+    return `${c}[U+${hex}]`;
+  }).join(' ');
+}
+
 /**
  * Parse structured Willys receipt text directly
  * Willys format: [Product Name] [Quantity*Price] [Total]
@@ -181,6 +188,12 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
   try {
     debugLog.push('📋 Willys Parser Starting...');
     debugLog.push(`  📄 Text length: ${text.length} chars`);
+    
+    // LOG RAW TEXT DUMP
+    debugLog.push('\n=== RAW TEXT DUMP (START) ===');
+    debugLog.push(text);
+    debugLog.push('=== RAW TEXT DUMP (END) ===\n');
+
     console.log('🔧 Attempting structured parsing of Willys receipt...');
     console.log('📄 Input text length:', text.length);
     console.log('📄 First 200 chars:', text.substring(0, 200));
@@ -445,6 +458,11 @@ function preprocessICAText(text: string): string {
 function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedItem[]; store_name?: string; total_amount?: number; receipt_date?: string; _debug?: ParserDebugInfo } | null {
   try {
     debugLog.push('📋 ICA Kvantum Parser Starting...');
+
+    // LOG RAW TEXT DUMP
+    debugLog.push('\n=== RAW TEXT DUMP (START) ===');
+    debugLog.push(text);
+    debugLog.push('=== RAW TEXT DUMP (END) ===\n');
 
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     debugLog.push(`  📄 Text length: ${text.length} chars, ${lines.length} lines`);
@@ -893,6 +911,11 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       if (!line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
         debugLog.push(`  Line ${i}: "${linePreview}"`);
         debugLog.push(`    ⏭️ Skipped (no pattern match)${line.length <= 5 ? ' [short line]' : ''}`);
+        
+        // If line has numbers but was skipped, log hex codes to debug invisible chars
+        if (/\d/.test(line)) {
+           debugLog.push(`    🔍 Hex: ${logHexCodes(line)}`);
+        }
       }
     }
 
