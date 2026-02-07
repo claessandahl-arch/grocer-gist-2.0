@@ -41,6 +41,36 @@ This document stores the "collective memory" of the AI agents working on this re
 - **Pattern**: Add synthetic "Avrundning" item when `0.01 < |diff| < 1.0` to reconcile totals.
 - **Context**: ICA Kvantum receipt parser improvements (2026-02-07).
 
+### Code Review Protocol Violation (2026-02-07)
+- **Issue**: Agent performed code review, then implemented suggestions without waiting for user approval.
+- **Fix**: **NEVER implement code review suggestions without explicit user approval.**
+- **Protocol**: 
+  1. Perform code review → create review.md
+  2. Present findings to user
+  3. ⏸️ **STOP and wait for input**
+  4. User decides: accept/modify/reject
+  5. Only then implement approved changes
+- **Rule**: Code review = recommendations, NOT instructions. User approval is MANDATORY.
+- **Context**: Parser bug fix session violated autonomy boundaries (PR #34).
+
+### Edge Function Testing Context (2026-02-07)
+- **Issue**: localhost:8080 hits production Edge Functions, not local code. Caused confusion when bulk test showed bug after "deployment".
+- **Fix**: Always deploy Edge Function BEFORE testing: `supabase functions deploy [name]`
+- **Workflow**:
+  1. Make changes to Edge Function code
+  2. Deploy: `supabase functions deploy parse-receipt`
+  3. Test on localhost:8080 (will now hit deployed version)
+  4. Verify fix works in production
+  5. Merge PR to main
+- **Context**: ICA Kvantum parser fix (PR #34).
+
+### Parser Merged Digits Bug Pattern (2026-02-07)
+- **Issue**: Regex `/[,.](\d+)[,.](\d+)$/` can capture merged digits across price/quantity fields (e.g., `,052,00` → qty=52 instead of 2).
+- **Fix**: Added unit price sanity check. If `qty > 1` but `unitPrice < 1 kr`, fallback to `qty=1`.
+- **Pattern**: Swedish receipts often have format: `ITEM_NAME,quantity,unit_price`. Regex must not cross field boundaries.
+- **Long-term**: Implement Parser Anomaly Detection System (see `docs/parser-anomaly-detection-system.md`).
+- **Context**: ICA Kvantum "Sunny Soda Nocco2F38" bug (PR #34).
+
 *(Add entries here after `/system-review`)*
 - [Example]: *Issue with Supabase realtime subscription cleanup caused memory leaks. Fix: Ensure `.unsubscribe()` is called in `useEffect` cleanup.*
 
