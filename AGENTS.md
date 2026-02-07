@@ -96,6 +96,10 @@ Before submitting a PR:
 - **Routing**: Add new routes in `App.tsx` *above* the catch-all `*` route. Lazy load using `React.lazy`.
 - **Styling**: Use Tailwind utility classes. Use `cn()` (`clsx` + `tailwind-merge`) for conditional classes.
 - **Supabase**: Use `src/integrations/supabase/client.ts`. Respect RLS.
+- **Edge Functions**: 
+    - Run on Deno runtime, not Node.js.
+    - For local testing: use `deno test` or duplicate logic in Node.js test harness.
+    - Imports use `https://deno.land/std@...` format.
 - **PostgREST RPCs**: 
     - No default parameters (PostgREST requirement).
     - Set `search_path = public, auth` if using `auth.uid()`.
@@ -126,11 +130,14 @@ As a [user], I want to [action] so that [benefit].
 - **Database**: Update Supabase schema if needed.
 
 ## Step-by-Step
+0. [ ] **Review existing implementation** (identify what already exists)
 1. [ ] Create UI skeleton
 2. [ ] Implement logic
 3. [ ] Connect to Supabase
 4. [ ] Verify build
 ```
+
+**CRITICAL**: Always start with code review to avoid planning work that's already done.
 
 ## 7. Troubleshooting
 

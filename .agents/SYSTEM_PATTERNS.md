@@ -30,6 +30,17 @@ This document stores the "collective memory" of the AI agents working on this re
 
 ## 3. Recurring Issues & Fixes
 
+### Supabase Edge Functions (Deno Runtime)
+- **Issue**: Edge Functions use Deno runtime, not Node.js. Cannot directly import Edge Function code in Node.js tests.
+- **Fix**: Either use Deno CLI for local testing (`deno test`) or duplicate parser logic in test harness with warning comment about keeping in sync.
+- **Context**: Discovered during receipt parser testing (2026-02-07).
+
+### Swedish Receipt Parsing Patterns
+- **Multi-buy codes**: Swedish receipts use patterns like "4F30" (4 för 30 kr) or "2F35" (2 för 35 kr).
+- **Öresavrundning**: Small rounding differences (< 1 kr) between calculated total and receipt total are normal due to Swedish cash rounding abolishment.
+- **Pattern**: Add synthetic "Avrundning" item when `0.01 < |diff| < 1.0` to reconcile totals.
+- **Context**: ICA Kvantum receipt parser improvements (2026-02-07).
+
 *(Add entries here after `/system-review`)*
 - [Example]: *Issue with Supabase realtime subscription cleanup caused memory leaks. Fix: Ensure `.unsubscribe()` is called in `useEffect` cleanup.*
 
