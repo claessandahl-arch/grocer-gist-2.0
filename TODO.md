@@ -63,14 +63,31 @@
   - Will work until that bucket is deleted
   - Consider migrating images to new storage bucket
 
-- [ ] **Structured parser item merge error** 🔥 NEW (2026-02-07)
+- [x] **Structured parser item merge error** ✅ FIXED (2026-02-07, PR #34)
   - **Receipt:** `ICA Kvantum Kungens Kurva 2026-02-05`
-  - **Symptom:** Item "Sunny Soda Nocco2F38" shows 52 st × 34.1 kr = 0.66:-/st
+  - **Symptom:** Item "Sunny Soda Nocco2F38" showed 52 st × 34.1 kr = 0.66:-/st
   - **Expected:** Should be 2 st × 19,05 kr based on receipt table
-  - **Root cause:** Parser incorrectly merged/calculated quantity and price
-  - **Impact:** Price comparison shows wrong unit price
+  - **Root cause:** Parser regex captured merged digits from `,052,00` (price+quantity) → extracted qty=52
+  - **Fix:** Added unit price sanity check: if `impliedUnitPrice < 1 kr`, fallback to qty=1
+  - **Limitation:** Fix prevents absurd prices but uses qty=1 fallback (not perfect qty=2)
+  - **Docs:** `.agents/active/fix-structured-parser-merge/` (plan, execution, code review)
 
+---
 
+## Parser Quality & Monitoring 🔍
+
+- [ ] **Parser Anomaly Detection System** 📋 PLANNED
+  - **Goal:** Automatically detect and alert on parser issues before users notice
+  - **Implementation Plan:** [`docs/parser-anomaly-detection-system.md`](docs/parser-anomaly-detection-system.md)
+  - **Phases:**
+    1. Persistent debug storage (parser_metadata in receipts table)
+    2. Automated anomaly detection (absurd prices, high quantities, etc.)
+    3. Admin dashboard (parser health score, recent anomalies)
+    4. Proactive alerting (in-app notifications when quality degrades)
+    5. Continuous regression testing (golden receipt set, daily automated tests)
+  - **Estimated Effort:** 12-18 hours
+  - **Priority:** Medium (implement after current feature work)
+  - **Benefit:** Catch bugs like the "Sunny Soda qty=52" automatically
 
 ---
 
