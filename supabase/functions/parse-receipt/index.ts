@@ -1596,7 +1596,8 @@ serve(async (req) => {
 
     // Parser version for A/B testing (default: 'current')
     // Supported: 'current' | 'experimental' | 'ai_only' | 'comparison'
-    const selectedVersion = parserVersion || 'current';
+    // Default to experimental parser (ICA Kvantum table format) for production
+    const selectedVersion = parserVersion || 'experimental';
     console.log(`🔧 Parser version: ${selectedVersion}`);
 
     const isComparisonMode = selectedVersion === 'comparison';
@@ -2512,7 +2513,8 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     parsedData._debug = {
       method: 'ai_parser',
       parserVersion: selectedVersion,
-      debugLog: debugLog
+      debugLog: debugLog,
+      fallback_used: true  // Indicates structured parser failed, AI was used
     };
 
     return new Response(

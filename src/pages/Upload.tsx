@@ -322,6 +322,11 @@ const Upload = () => {
                 console.log(`  ${idx + 1}. ${entry}`);
               });
             }
+            // Notify if AI fallback was used (structured parser failed)
+            if (parsedData._debug.fallback_used) {
+              console.warn(`⚠️ Structured parser failed, AI fallback used for: ${baseFilename}`);
+              toast.info(`Parser fallback: ${baseFilename} used AI parser`, { duration: 5000 });
+            }
           } else {
             console.log(`⚠️ No debug info - likely using AI parser`);
           }
