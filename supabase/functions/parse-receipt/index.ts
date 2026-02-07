@@ -562,6 +562,7 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         // Try to extract quantity from the garbage before unit
         // For st: ",951,00" means qty=1, ",952,00" means qty=2
         // For kg: ",002,91" means qty=2.91 kg
+        // BUG FIX: Handle merged price+quantity like ",052,00" where "052" -> 52 (wrong!)
         let quantity = 1; // default
         const qtyMatch = rawContent.match(/[,.](\d+)[,.](\d+)$/);
         if (qtyMatch) {
@@ -571,8 +572,17 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
           } else {
             // For st, quantity is just the integer before the decimals
             const extractedQty = parseInt(qtyMatch[1]);
-            if (extractedQty > 0 && extractedQty < 100) { // sanity check
-              quantity = extractedQty;
+            // Tightened sanity check: realistic grocery quantities are 1-30
+            if (extractedQty > 0 && extractedQty < 30) {
+              // Additional validation: unit price should be >= 1 kr for 'st' items
+              // This catches cases where merged digits like ",052,00" produce qty=52
+              const impliedUnitPrice = total / extractedQty;
+              if (impliedUnitPrice >= 1) {
+                quantity = extractedQty;
+              } else {
+                // Unit price too low - quantity extraction likely grabbed garbage digits
+                debugLog.push(`    ⚠️ Qty sanity fail: extracted ${extractedQty} gives ${impliedUnitPrice.toFixed(2)} kr/st - using qty=1`);
+              }
             }
           }
         }
