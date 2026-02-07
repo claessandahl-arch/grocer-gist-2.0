@@ -30,6 +30,33 @@ Follow the **Plan → Implement → Validate** loop:
 - `/commit`: Create git commit with changes (including plan/execution docs).
 - `/system-review`: Meta-analysis AND **MANDATORY** archive of the feature folder to `.agents/archive/`.
 
+### Code Review Protocol
+When performing a code review (spontaneous or via `/code-review`):
+
+1. **Analyze**: Review code for security, logic, performance, and patterns.
+2. **Document**: Create review findings in `.agents/active/[feature]/review.md`.
+3. **Present**: Communicate findings to user with priority levels (High/Medium/Low).
+4. **⏸️ STOP**: **NEVER implement changes without explicit user approval**.
+5. **Wait**: User will decide to accept/modify/reject suggestions.
+6. **Implement**: Only after user approval, make changes and commit.
+
+**CRITICAL:** Code review findings are **recommendations**, not instructions. User approval is **MANDATORY** before making any changes, even for "obvious" improvements like comment clarifications.
+
+### Edge Function Deployment
+Supabase Edge Functions can be deployed independently from feature branches for production testing:
+
+1. **Deploy from feature branch**: `supabase functions deploy [function-name]`
+   - Example: `supabase functions deploy parse-receipt`
+2. **Production context**: localhost:8080 calls **production** Edge Functions, not local code.
+3. **Testing workflow**:
+   - Make changes to `supabase/functions/[name]/index.ts`
+   - Deploy: `supabase functions deploy [name]`
+   - Test on localhost:8080 (will now hit deployed version)
+   - Verify fix works in production environment
+4. **Merge to main**: Only after production testing confirms fix works.
+
+**Note:** Deploying from a feature branch does NOT deploy main branch code. The deployed version becomes active immediately in production.
+
 ### ⚠️ Mandatory Archiving Rule
 An agent session for a feature is NOT complete until the `/system-review` is written and the entire directory is moved from `.agents/active/` to `.agents/archive/`. 
 **CRITICAL:** Archive ONLY AFTER the final `/commit`. Never archive before committing, or the PR will lack context.
