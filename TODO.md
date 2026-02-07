@@ -63,6 +63,14 @@
   - Will work until that bucket is deleted
   - Consider migrating images to new storage bucket
 
+- [ ] **Structured parser item merge error** 🔥 NEW (2026-02-07)
+  - **Receipt:** `ICA Kvantum Kungens Kurva 2026-02-05`
+  - **Symptom:** Item "Sunny Soda Nocco2F38" shows 52 st × 34.1 kr = 0.66:-/st
+  - **Expected:** Should be 2 st × 19,05 kr based on receipt table
+  - **Root cause:** Parser incorrectly merged/calculated quantity and price
+  - **Impact:** Price comparison shows wrong unit price
+
+
 
 ---
 
