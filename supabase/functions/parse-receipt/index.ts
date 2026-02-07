@@ -188,7 +188,7 @@ function parseWillysReceiptText(text: string, debugLog: string[] = []): { items:
   try {
     debugLog.push('📋 Willys Parser Starting...');
     debugLog.push(`  📄 Text length: ${text.length} chars`);
-    
+
     // LOG RAW TEXT DUMP
     debugLog.push('\n=== RAW TEXT DUMP (START) ===');
     debugLog.push(text);
@@ -903,7 +903,42 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         expectingPantreturValues = false;
       }
 
-      // === NO MATCH ===
+      // === MULTI-BUY PATTERN ===
+      // Match lines like "Donut/Munk 4F30" or "Bas/Koriander 2F35"
+      const multiBuyCodeMatch = line.match(/^([A-Za-zåäöÅÄÖéèüûôîâêëïÉÈÜÛÔÎÂÊËÏ\s\-\/,]+?)\s+(\d+F\d+)$/i);
+      if (multiBuyCodeMatch && currentProduct) {
+        const nameText = multiBuyCodeMatch[1].trim();
+        const multiBuyCode = multiBuyCodeMatch[2];
+
+        // Append name continuation (ignore the multi-buy code, it's informational)
+        if (nameText && nameText.length > 1) {
+          (currentProduct as WorkingParsedItem).name += ' ' + nameText;
+          multilineCount++;
+          matchedLines++;
+          expectingPantValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    📦 Multi-buy line: "${nameText}" (code: ${multiBuyCode}) → "${currentProduct.name}"`);
+          continue;
+        }
+      }
+
+      // === GREEDY NAME CAPTURE ===
+      // Try to capture unmatched lines as name continuation if currentProduct exists
+      if (currentProduct && line.length > 1) {
+        // Don't capture footer patterns, standalone numbers, or article numbers
+        if (!line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning|\d+[,.]\d+$)/) &&
+          !line.match(/^\d{10,}$/)) {
+          (currentProduct as WorkingParsedItem).name += ' ' + line;
+          multilineCount++;
+          matchedLines++;
+          expectingPantValues = false;
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    📝 Greedy capture: "${line}" → "${currentProduct.name}"`);
+          continue;
+        }
+      }
+
+      // === NO MATCH (truly skipped) ===
       skippedLines++;
       expectingPantValues = false;
 
@@ -911,10 +946,10 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
       if (!line.match(/^(Moms|Netto|Brutto|Totalt|Kort|Erhållen|Avrundning)/)) {
         debugLog.push(`  Line ${i}: "${linePreview}"`);
         debugLog.push(`    ⏭️ Skipped (no pattern match)${line.length <= 5 ? ' [short line]' : ''}`);
-        
+
         // If line has numbers but was skipped, log hex codes to debug invisible chars
         if (/\d/.test(line)) {
-           debugLog.push(`    🔍 Hex: ${logHexCodes(line)}`);
+          debugLog.push(`    🔍 Hex: ${logHexCodes(line)}`);
         }
       }
     }
@@ -939,8 +974,20 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
     const calculatedTotal = parseFloat(items.reduce((sum, item) => sum + item.price, 0).toFixed(2));
     debugLog.push(`  Calculated total: ${calculatedTotal} kr`);
     if (totalAmount) {
-      const diff = Math.abs(totalAmount - calculatedTotal);
+      const diff = totalAmount - calculatedTotal;
       debugLog.push(`  Difference from receipt total: ${diff.toFixed(2)} kr`);
+
+      // Add synthetic Avrundning item if difference is small but non-zero
+      // This accounts for Swedish öresavrundning (rounding to nearest krona)
+      if (Math.abs(diff) > 0.01 && Math.abs(diff) < 1.0) {
+        items.push({
+          name: 'Avrundning',
+          price: parseFloat(diff.toFixed(2)),
+          quantity: 1,
+          category: 'other'
+        });
+        debugLog.push(`  ✓ Added Avrundning item: ${diff.toFixed(2)} kr`);
+      }
     }
 
     if (items.length === 0) {
@@ -2477,7 +2524,7 @@ Return ONLY the function call with properly formatted JSON. No additional text o
     console.error('Error in parse-receipt function:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
