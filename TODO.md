@@ -2,6 +2,13 @@
 
 > **Last session:** 2026-01-17 — Fixed Price Comparison search filter bug (PR #27), added comprehensive documentation (`docs/PRICE_COMPARISON.md`)
 
+## High Priority Fixes 🚨
+
+- [ ] **Fix '2F25' Discount Parsing Logic** (IMPORTANT)
+  - **Issue:** `parseICAKvantumText` treats multi-buy offers like "2F25" as simple discounts (subtraction) instead of price overrides.
+  - **Impact:** Incorrect prices (e.g., 8.10 kr instead of 25.00 kr) for bundled items.
+  - **Plan:** [`docs/PARSER_2F25_DISCOUNT_FIX_PLAN.md`](docs/PARSER_2F25_DISCOUNT_FIX_PLAN.md)
+
 ## Fixed Bugs ✅
 
 - [x] **"Sök liknande grupper" timeout fixed** (PR #2)
