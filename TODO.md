@@ -76,15 +76,15 @@
 
 ## Parser Quality & Monitoring 🔍
 
-- [ ] **Parser Anomaly Detection System** 📋 PLANNED
+- [x] **Parser Anomaly Detection System** ✅ FIXED (2026-02-08, PR #36)
   - **Goal:** Automatically detect and alert on parser issues before users notice
   - **Implementation Plan:** [`docs/parser-anomaly-detection-system.md`](docs/parser-anomaly-detection-system.md)
   - **Phases:**
-    1. Persistent debug storage (parser_metadata in receipts table)
-    2. Automated anomaly detection (absurd prices, high quantities, etc.)
-    3. Admin dashboard (parser health score, recent anomalies)
-    4. Proactive alerting (in-app notifications when quality degrades)
-    5. Continuous regression testing (golden receipt set, daily automated tests)
+    1. [x] Persistent debug storage (parser_metadata in receipts table)
+    2. [x] Automated anomaly detection (absurd prices, high quantities, etc.)
+    3. [x] Admin dashboard (parser health score, recent anomalies)
+    4. [ ] Proactive alerting (in-app notifications when quality degrades)
+    5. [ ] Continuous regression testing (golden receipt set, daily automated tests)
   - **Estimated Effort:** 12-18 hours
   - **Priority:** Medium (implement after current feature work)
   - **Benefit:** Catch bugs like the "Sunny Soda qty=52" automatically

@@ -188,6 +188,39 @@ export default function Diagnostics() {
 
 
 
+    // Query for checking corrupt categories
+    const { data: corruptCategories = { count: 0, examples: [] }, isLoading: loadingCorrupt, refetch: refetchCorrupt } = useQuery({
+        queryKey: ['corrupt-categories'],
+        queryFn: async () => {
+            if (!user) return { count: 0, examples: [] };
+            const { data, error } = await supabase.functions.invoke('cleanup-categories', {
+                body: { action: 'scan' }
+            });
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!user
+    });
+
+    // Mutation to fix corrupt categories
+    const fixCorruptCategories = useMutation({
+        mutationFn: async () => {
+            const { data, error } = await supabase.functions.invoke('cleanup-categories', {
+                body: { action: 'fix' }
+            });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            toast.success(`${data.fixed} kategorier har rättats till!`);
+            refetchCorrupt();
+            queryClient.invalidateQueries({ queryKey: ['category-breakdown'] });
+        },
+        onError: (error) => {
+            toast.error("Misslyckades med att rätta kategorier: " + error.message);
+        }
+    });
+
     // Mutation to delete empty mappings
     const deleteEmptyMappings = useMutation({
         mutationFn: async () => {
@@ -435,22 +468,35 @@ export default function Diagnostics() {
                                 </AlertDialog>
                             </div>
 
-                            {/* Corrupted Categories Tool (Migrated from old DiagnosticTool) */}
+                            {/* Corrupted Categories Tool */}
                             <div className="flex items-center justify-between p-4 border rounded-lg bg-card/50 mt-4">
                                 <div className="space-y-1">
                                     <h3 className="font-medium">Korrupta kategorier</h3>
                                     <p className="text-sm text-muted-foreground">
-                                        Hittar produkter som har flera kategorier (kommatecken i fältet), vilket kan ställa till det för statistiken.
+                                        Hittar produkter som har flera kategorier (kommatecken i fältet) eller gamla engelska nycklar.
                                     </p>
                                     <div className="flex items-center gap-2 mt-2">
-                                        <span className="text-sm font-medium text-blue-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" />
-                                            Funktionalitet kommer snart (migreras)
-                                        </span>
+                                        {loadingCorrupt ? (
+                                            <p className="text-xs text-muted-foreground">Laddar...</p>
+                                        ) : corruptCategories.count > 0 ? (
+                                            <span className="text-sm font-medium text-orange-600 flex items-center gap-1">
+                                                <AlertTriangle className="h-3 w-3" />
+                                                {corruptCategories.count} produkter behöver fixas
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                Inga korrupta kategorier hittades
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
-                                <Button variant="outline" disabled>
-                                    Kommer snart
+                                <Button 
+                                    variant={corruptCategories.count > 0 ? "default" : "outline"}
+                                    disabled={loadingCorrupt || corruptCategories.count === 0 || fixCorruptCategories.isPending}
+                                    onClick={() => fixCorruptCategories.mutate()}
+                                >
+                                    {fixCorruptCategories.isPending ? "Rättar..." : "Rätta till"}
                                 </Button>
                             </div>
 
