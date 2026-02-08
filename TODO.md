@@ -195,6 +195,15 @@
 
 ---
 
+## Infrastructure & CI 🏗️
+
+- [ ] **Fix Parser Regression Test CI**
+  - **Status:** Currently set to `continue-on-error: true` in `.github/workflows/parser-regression-test.yml`.
+  - **Issue:** Edge Function occasionally returns non-2xx status codes during automated runs.
+  - **Action:** Investigate stability of `parse-receipt` in CI environment and remove `continue-on-error` once reliable.
+
+---
+
 ## Migration Status ✅
 
 > **All phases complete as of December 29, 2024**
