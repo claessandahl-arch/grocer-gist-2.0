@@ -72,6 +72,14 @@
   - **Limitation:** Fix prevents absurd prices but uses qty=1 fallback (not perfect qty=2)
   - **Docs:** `.agents/active/fix-structured-parser-merge/` (plan, execution, code review)
 
+- [x] **Admin Tools Enhancement** ✅ FIXED (2026-02-08, PR #37)
+  - **Goal:** Improve parser quality monitoring and database hygiene
+  - **Features:**
+    - [x] **Bulk Tester Integration:** Visualizes parser anomalies (e.g., "High Qty") directly in test results.
+    - [x] **Corrupt Categories Tool:** "Städverktyg" in Diagnostics page to scan and fix invalid category keys.
+  - **Impact:** Immediate visibility of parser regressions and one-click database cleanup.
+  - **Docs:** [`docs/PARSER_ENHANCEMENT_ROADMAP.md`](docs/PARSER_ENHANCEMENT_ROADMAP.md)
+
 ---
 
 ## Parser Quality & Monitoring 🔍
@@ -184,6 +192,15 @@
   
 - [ ] Custom domain via Vercel Domains
 - [ ] Migrate receipt images to new Supabase storage bucket
+
+---
+
+## Infrastructure & CI 🏗️
+
+- [ ] **Fix Parser Regression Test CI**
+  - **Status:** Currently set to `continue-on-error: true` in `.github/workflows/parser-regression-test.yml`.
+  - **Issue:** Edge Function occasionally returns non-2xx status codes during automated runs.
+  - **Action:** Investigate stability of `parse-receipt` in CI environment and remove `continue-on-error` once reliable.
 
 ---
 

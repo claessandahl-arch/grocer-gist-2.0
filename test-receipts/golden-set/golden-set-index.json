@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-02-08",
+  "receipts": [
+    {
+      "id": "ica-kvantum-example",
+      "store_type": "ICA_Kvantum",
+      "pdf_file": "ICA_Kvantum_Example.pdf",
+      "expected_file": "ICA_Kvantum_Example.json",
+      "items_count": 45,
+      "total_amount": 1353.53,
+      "notes": "Example baseline receipt (needs actual PDF)"
+    }
+  ]
+}

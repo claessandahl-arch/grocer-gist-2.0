@@ -1,0 +1,37 @@
+name: Parser Regression Test
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+  pull_request:
+    paths:
+      - 'supabase/functions/parse-receipt/**'
+      - 'scripts/test-parser-regression.ts'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run regression tests
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/test-parser-regression.ts
+      
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Parser regression test failed! Check the run logs for details."

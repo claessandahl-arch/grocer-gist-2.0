@@ -72,6 +72,12 @@ This document stores the "collective memory" of the AI agents working on this re
 - **Long-term**: Implement Parser Anomaly Detection System (Implemented 2026-02-08).
 - **Context**: ICA Kvantum "Sunny Soda Nocco2F38" bug (PR #34).
 
+### Database Cleanup Patterns (2026-02-08)
+- **Pattern**: Implement cleanup tools with "Scan" (read-only) and "Fix" (write) modes.
+- **Benefit**: Allows admins to verify the scope of the problem before applying destructive changes.
+- **Implementation**: Edge Function with `action: 'scan'` vs `action: 'fix'`.
+- **Context**: "Corrupt Categories" cleanup tool implementation (PR #37).
+
 *(Add entries here after `/system-review`)*
 - [Example]: *Issue with Supabase realtime subscription cleanup caused memory leaks. Fix: Ensure `.unsubscribe()` is called in `useEffect` cleanup.*
 
