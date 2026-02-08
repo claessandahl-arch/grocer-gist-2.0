@@ -28,6 +28,7 @@ This document outlines the remaining features and enhancements required to make 
 
 ## 2. Bulk Tester Integration (High Value / Low Effort)
 **Goal:** Surface parser anomalies directly during development testing.
+**Status:** ✅ Completed (2026-02-08)
 
 ### Features
 *   **UI Update:** Update `BulkTester.tsx` to read `parser_metadata` from the response.
@@ -35,8 +36,8 @@ This document outlines the remaining features and enhancements required to make 
 *   **Drill-down:** Clicking the warning shows the specific anomaly details.
 
 ### Implementation Tasks
-- [ ] Update `parse-receipt` to return `parser_metadata` in `comparison` mode response.
-- [ ] Update `BulkTester.tsx` to display anomaly warnings.
+- [x] Update `parse-receipt` to return `parser_metadata` in `comparison` mode response.
+- [x] Update `BulkTester.tsx` to display anomaly warnings.
 
 ---
 
@@ -57,6 +58,7 @@ This document outlines the remaining features and enhancements required to make 
 
 ## 4. "Corrupt Categories" Cleanup Tool
 **Goal:** Fix data quality issues caused by legacy or English category keys.
+**Status:** ✅ Completed (2026-02-08)
 
 ### Features
 *   **Diagnostic Tool:** Identify products with invalid keys (e.g., `fruits_vegetables` instead of `frukt_och_gront`).
@@ -64,9 +66,9 @@ This document outlines the remaining features and enhancements required to make 
 *   **Status:** UI placeholder exists in `Diagnostics.tsx` ("Kommer snart").
 
 ### Implementation Tasks
-- [ ] Migrate logic from legacy `DiagnosticTool` (if available) or write new query.
-- [ ] Implement `fix-categories` Edge Function.
-- [ ] Connect UI button in `Diagnostics.tsx`.
+- [x] Migrate logic from legacy `DiagnosticTool` (if available) or write new query.
+- [x] Implement `fix-categories` Edge Function.
+- [x] Connect UI button in `Diagnostics.tsx`.
 
 ---
 
