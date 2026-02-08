@@ -780,7 +780,43 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
           continue;
         }
 
-        // Regular product discount
+        // Check if the current product name contains a multi-buy pattern
+        // This handles cases where the multi-buy code was on a previous line
+        // e.g., Line 1: "Nocco 2F36", Line 2: "-11,80"
+        const offerPattern = /(\d+)\s*(?:för|f|\/)\s*(\d+[,.]?\d*)(?:kr)?/i;
+        const multiBuyInName = currentProduct.name.match(offerPattern);
+
+        if (multiBuyInName) {
+          // Multi-buy offer detected in product name
+          const bundleQty = parseInt(multiBuyInName[1]);
+          const bundlePrice = parseFloat(multiBuyInName[2].replace(',', '.'));
+
+          // Validate bundle quantity
+          if (bundleQty <= 0 || isNaN(bundleQty) || isNaN(bundlePrice)) {
+            // Invalid multi-buy pattern, fall through to regular discount logic
+            debugLog.push(`  Line ${i}: "${linePreview}"`);
+            debugLog.push(`    ⚠️ Invalid multi-buy pattern in name (qty=${bundleQty}, price=${bundlePrice})`);
+          } else {
+            // Set price to bundle price (not subtract discount)
+            const originalPrice = currentProduct.price;
+            currentProduct.price = bundlePrice;
+
+            // Calculate actual discount based on bundle price (prevent negative discounts)
+            const actualDiscount = Math.max(0, parseFloat((originalPrice - bundlePrice).toFixed(2)));
+            currentProduct.discount = (currentProduct.discount || 0) + actualDiscount;
+
+            // Clear the expects discount flag
+            delete (currentProduct as WorkingParsedItem)._expectsDiscount;
+            discountCount++;
+            matchedLines++;
+            expectingPantValues = false;
+            debugLog.push(`  Line ${i}: "${linePreview}"`);
+            debugLog.push(`    🎁 Multi-buy discount: ${bundleQty}F${bundlePrice} → "${currentProduct.name}" now ${currentProduct.price} kr (discount: ${actualDiscount} kr)`);
+            continue;
+          }
+        }
+
+        // Regular product discount (no multi-buy)
         currentProduct.discount = (currentProduct.discount || 0) + discount;
         currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
         // Clear the expects discount flag now that discount is applied
@@ -801,20 +837,70 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         const brandText = brandDiscountMatch[1].trim();
         const discount = Math.abs(parseFloat(brandDiscountMatch[2].replace(',', '.')));
 
-        // Append brand name if it's not just numbers
-        if (brandText && !brandText.match(/^\d+[,.]?\d*$/)) {
-          currentProduct.name += ' ' + brandText;
-          multilineCount++;
+        // Check if brandText contains a multi-buy offer pattern (e.g., "Energidryck 2F25")
+        // Patterns: "2F25", "3för45", "4/89", etc.
+        const offerPattern = /^(.+?)\s*(\d+)\s*(?:för|f|\/)\s*(\d+[,.]?\d*)(?:kr)?$/i;
+        const multiBuyMatch = brandText.match(offerPattern);
+
+        if (multiBuyMatch) {
+          // Multi-buy offer detected (e.g., "Energidryck 2F25" = 2 for 25 kr)
+          const productDesc = multiBuyMatch[1].trim();
+          const bundleQty = parseInt(multiBuyMatch[2]);
+          const bundlePrice = parseFloat(multiBuyMatch[3].replace(',', '.'));
+
+          // Validate bundle quantity
+          if (bundleQty <= 0 || isNaN(bundleQty) || isNaN(bundlePrice)) {
+            // Invalid multi-buy pattern, fall through to regular discount logic
+            debugLog.push(`  Line ${i}: "${linePreview}"`);
+            debugLog.push(`    ⚠️ Invalid multi-buy pattern (qty=${bundleQty}, price=${bundlePrice}), treating as regular discount`);
+
+            // Treat as regular discount
+            if (brandText && !brandText.match(/^\d+[,.]?\d*$/)) {
+              currentProduct.name += ' ' + brandText;
+              multilineCount++;
+            }
+            currentProduct.discount = (currentProduct.discount || 0) + discount;
+            currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+            debugLog.push(`    💰 Brand + Discount: "${brandText}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
+          } else {
+            // Valid multi-buy pattern
+            // Append product description to name (not the offer code)
+            if (productDesc && !productDesc.match(/^\d+[,.]?\d*$/)) {
+              currentProduct.name += ' ' + productDesc;
+              multilineCount++;
+            }
+
+            // Set price to bundle price (not subtract discount)
+            const originalPrice = currentProduct.price;
+            currentProduct.price = bundlePrice;
+
+            // Calculate actual discount based on bundle price (prevent negative discounts)
+            const actualDiscount = Math.max(0, parseFloat((originalPrice - bundlePrice).toFixed(2)));
+            currentProduct.discount = (currentProduct.discount || 0) + actualDiscount;
+
+            debugLog.push(`  Line ${i}: "${linePreview}"`);
+            debugLog.push(`    🎁 Multi-buy: ${bundleQty}F${bundlePrice} → "${currentProduct.name}" now ${currentProduct.price} kr (discount: ${actualDiscount} kr)`);
+          }
+        } else {
+          // Not a multi-buy offer, use existing discount logic
+          // Append brand name if it's not just numbers
+          if (brandText && !brandText.match(/^\d+[,.]?\d*$/)) {
+            currentProduct.name += ' ' + brandText;
+            multilineCount++;
+          }
+
+          currentProduct.discount = (currentProduct.discount || 0) + discount;
+          currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
+
+          debugLog.push(`  Line ${i}: "${linePreview}"`);
+          debugLog.push(`    💰 Brand + Discount: "${brandText}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
         }
 
-        currentProduct.discount = (currentProduct.discount || 0) + discount;
-        currentProduct.price = parseFloat((currentProduct.price - discount).toFixed(2));
         discountCount++;
         matchedLines++;
         expectingPantValues = false;
-        debugLog.push(`  Line ${i}: "${linePreview}"`);
-        debugLog.push(`    💰 Brand + Discount: "${brandText}" -${discount} kr → "${currentProduct.name}" now ${currentProduct.price} kr`);
         continue;
+
       }
 
       // === PATTERN 4a: Receipt-level coupon line ===
