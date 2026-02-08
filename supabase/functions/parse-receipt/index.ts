@@ -658,15 +658,41 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         // Try to extract quantity from the garbage before unit
         // For st: ",951,00" means qty=1, ",952,00" means qty=2
         // For kg: ",002,91" means qty=2.91 kg
-        // BUG FIX: Handle merged price+quantity like ",052,00" where "052" -> 52 (wrong!)
-        // NOTE: This fix prevents absurd prices but may fallback to qty=1 (not perfect qty)
+        // BUG FIX (st): Handle merged price+quantity like ",052,00" where "052" -> 52 (wrong!)
+        // BUG FIX (kg): ICA Nära has short article numbers (2-4 digits) causing merged text
+        //   e.g. "Peppar Röd4697169,950,01" → regex grabs ",950,01" → 950.01 kg
+        //   Fix: sanity check kg qty (max 10), fallback to cross-validation via total/pricePerKg
         // Future enhancement: Parse multi-buy codes (e.g., "2F38") to infer correct quantity
         let quantity = 1; // default
         const qtyMatch = rawContent.match(/[,.](\d+)[,.](\d+)$/);
         if (qtyMatch) {
           if (unit === 'kg') {
             // For kg, quantity is like 2,91 -> 2.91
-            quantity = parseFloat(`${qtyMatch[1]}.${qtyMatch[2]}`);
+            const rawKgQty = parseFloat(`${qtyMatch[1]}.${qtyMatch[2]}`);
+
+            if (rawKgQty <= 10) {
+              // Normal kg quantity (no grocery item weighs > 10 kg)
+              quantity = rawKgQty;
+            } else {
+              // Absurd weight — likely merged digits from short article numbers (ICA Nära)
+              // e.g. "Peppar Röd4697169,950,01" → regex grabs ",950,01" → 950.01 kg
+              // Try cross-validation: extract per-kg price from the 4-number pattern and compute qty = total / pricePerKg
+              const priceQtyMatch = rawContent.match(/(\d+)[,.](\d+)[,.](\d+)[,.](\d+)$/);
+              if (priceQtyMatch) {
+                const pricePerKg = parseFloat(`${priceQtyMatch[1]}.${priceQtyMatch[2]}`);
+                if (pricePerKg > 0) {
+                  const computedQty = total / pricePerKg;
+                  if (computedQty > 0 && computedQty <= 10) {
+                    quantity = Math.round(computedQty * 100) / 100;
+                    debugLog.push(`    ⚠️ Kg sanity fix: raw ${rawKgQty} kg absurd, computed ${quantity} kg (total ${total} / price ${pricePerKg})`);
+                  } else {
+                    debugLog.push(`    ⚠️ Kg sanity fail: raw ${rawKgQty} kg, computed ${computedQty.toFixed(2)} kg also bad - using qty=1`);
+                  }
+                }
+              } else {
+                debugLog.push(`    ⚠️ Kg sanity fail: raw ${rawKgQty} kg absurd, no price pattern found - using qty=1`);
+              }
+            }
           } else {
             // For st, quantity is just the integer before the decimals
             const extractedQty = parseInt(qtyMatch[1]);

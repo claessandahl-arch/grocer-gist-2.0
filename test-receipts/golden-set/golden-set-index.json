@@ -10,6 +10,14 @@
       "items_count": 45,
       "total_amount": 1353.53,
       "notes": "Example baseline receipt (needs actual PDF)"
+    },
+    {
+      "id": "ica-nara-alvsjö-2025-10-08",
+      "store_type": "ICA_Nara",
+      "pdf_file": "ICA_Nara_Alvsjö_2025-10-08.pdf",
+      "items_count": null,
+      "total_amount": null,
+      "notes": "Regression test for kg quantity parsing with short article numbers. Peppar Röd and Svamp Champinjon had merged digits producing 950+ kg quantities."
     }
   ]
 }
