@@ -168,6 +168,10 @@
   - Contains summary, per-receipt results, items, and debug logs
   - Useful for sharing parser issues for debugging
 
+- [x] **Parser Health Drill-down** (2026-02-08, PR #40)
+  - [x] Link anomalies in Diagnostics to Training page
+  - [x] Support auto-selection of receipts via `receiptId` URL param
+
 **Known parser limitations** (documented, won't fix):
 - Bundle discounts can result in negative item prices (totals correct)
 - Bundle offer names (e.g. "4F25") may append to product names
@@ -219,7 +223,7 @@
 |-----------|---------|
 | Frontend | Vercel (`grocer-gist-2-0.vercel.app`) |
 | Database | Supabase (`issddemuomsuqkkrzqzn`) |
-| Edge Functions | Supabase (6 deployed) |
+| Edge Functions | Supabase (8 deployed) |
 | AI | Google Gemini API (`gemini-2.5-flash`) |
 
 ### Data Migrated

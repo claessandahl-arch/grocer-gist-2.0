@@ -21,6 +21,7 @@ This document is the primary source of truth for AI agents (Opencode, Cursor, Co
 3. **No Force Pushes**. Avoid `git push -f`.
 4. **Sync often**. Run `git pull` before starting work.
 5. **Verify before push**. Always run `npm run build` locally to ensure type safety.
+6. **Regression Testing**: Whenever a parser bug is fixed, a corresponding test case **MUST** be added to the Golden Set (`test-receipts/golden-set/`).
 
 ### Development Workflow (PIV)
 Follow the **Plan → Implement → Validate** loop:

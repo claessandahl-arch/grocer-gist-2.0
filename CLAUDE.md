@@ -47,8 +47,8 @@ This project uses:
 ### Supabase Configuration
 
 - **Project URL**: `https://issddemuomsuqkkrzqzn.supabase.co`
-- **Migrations**: 40+ migrations applied
-- **Edge Functions**: 6 deployed functions
+- **Migrations**: 45+ migrations applied
+- **Edge Functions**: 8 deployed functions
 
 ### Edge Function Deployment
 
@@ -66,6 +66,14 @@ supabase functions deploy
 - `GEMINI_API_KEY` - For AI parsing
 - `SUPABASE_URL` - Auto-injected
 - `SUPABASE_SERVICE_ROLE_KEY` - For admin operations
+
+### Parser Quality Control 🛡️
+
+To maintain high parsing accuracy, the project uses:
+
+1. **Regression Testing**: `npm run test:regression` runs a suite of "Golden Receipts". Whenever a parser bug is fixed, a new test case MUST be added to `test-receipts/golden-set/`.
+2. **Anomaly Detection**: The parser automatically flags suspicious data (e.g., `absurd_unit_price`).
+3. **Diagnostics**: The `/diagnostics` page allows developers to monitor parser health and drill down into errors for manual correction.
 
 ### Edge Function Security 🔒
 
@@ -528,6 +536,14 @@ Location: `supabase/functions/`
   }>;
 }
 ```
+
+### 4. cleanup-categories
+
+**Purpose:** Scan and fix invalid or corrupted category keys in the database.
+
+**Actions:**
+- `scan`: Identifies products with multiple categories or invalid keys.
+- `fix`: Normalizes category keys to canonical Swedish versions.
 
 ## Database Migrations
 

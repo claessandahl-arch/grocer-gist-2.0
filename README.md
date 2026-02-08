@@ -9,6 +9,7 @@ A smart grocery spending tracker that uses AI to parse receipt images and PDFs, 
 - 💰 **Price Comparison** - Compare prices across stores to find the best deals
 - 🏷️ **Smart Categorization** - AI-powered product categorization with learning from corrections
 - 🔄 **Product Grouping** - Automatically group similar products for better tracking
+- 🛡️ **Parser Reliability** - Automated regression testing and anomaly detection to ensure high parsing accuracy
 
 ## Tech Stack
 
@@ -19,6 +20,14 @@ A smart grocery spending tracker that uses AI to parse receipt images and PDFs, 
 - **Hosting**: Vercel (frontend) / Supabase (backend)
 
 ## Development
+
+### Quality Control
+
+The project includes a robust system for ensuring parser quality:
+
+- **Regression Testing**: Run `npm run test:regression` to verify the parser against a "Golden Set" of known receipts.
+- **Anomaly Detection**: Automated detection of absurd prices, high quantities, and other parsing errors.
+- **Diagnostics Dashboard**: Visit `/diagnostics` in the app to view parser health metrics and drill down into specific errors for correction.
 
 ### Prerequisites
 
@@ -63,6 +72,8 @@ The app uses Supabase Edge Functions for AI-powered features:
 | `suggest-product-groups` | AI product grouping suggestions |
 | `suggest-group-merges` | AI merge suggestions for product groups |
 | `auto-map-products` | Auto-map products to groups |
+| `cleanup-categories` | Scan and fix invalid category keys |
+| `export-data` | Export user data |
 | `admin-delete-all` | Admin utility for data cleanup |
 
 Edge Functions require `GEMINI_API_KEY` to be set as a secret.

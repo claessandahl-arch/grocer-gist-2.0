@@ -54,8 +54,10 @@ Kärnvärdet är **automatisering**: istället för att manuellt registrera varj
 - ✅ Butiksrekommendationer (var produkter är billigast)
 - ✅ Produkthantering med AI-assisterad gruppering
 - ✅ Träningsgränssnitt för att korrigera AI-tolkningar
-- ✅ Dupblettdetektering vid uppladdning
+- ✅ Dupblettdetektering vid uppladdning (Datum-medveten)
 - ✅ Flersidiga PDF:er (automatiskt kombinerade)
+- ✅ Parser Anomaly Detection System (automatisk feldetektering)
+- ✅ Automated Regression Testing (Golden Set)
 
 **Technical**
 - ✅ React + TypeScript + Vite frontend
@@ -253,6 +255,17 @@ grocer-gist-2.0/
 - Butiksranking per produkt
 - Total möjlig besparing per månad
 
+### 7.7 Diagnostics & Quality Monitoring
+
+**Purpose:** Övervaka parserns hälsa och möjliggöra snabba korrigeringar
+
+**Features:**
+- **Parser Health Dashboard:** Visualiserar hälsa (%), snitt-tid och vanliga feltyper
+- **Anomaly List:** Detaljerad lista på misstänkta fel (absurd_unit_price, high_quantity)
+- **Drill-down:** Klicka på ett fel för att öppna kvittot direkt i träningsläget
+- **System Diagnostics:** Verktyg för att rensa korrupta kategorier och tomma mappings
+- **Regression Testing UI:** Instruktioner och status för Golden Set-tester
+
 ---
 
 ## 8. Technology Stack
@@ -447,12 +460,13 @@ Applikationen är framgångsrik när användaren kan:
 - ✅ Produkthantering
 - ✅ Träningsgränssnitt
 
-**Phase 4: Polish**
+**Phase 4: Polish & Quality**
 - ✅ Loading och error states
 - ✅ Code splitting (React.lazy)
-- ✅ Virtualisering för stora listor
 - ✅ Server-side aggregering
 - ✅ Vercel + Supabase deployment
+- ✅ Parser Anomaly Detection & Diagnostics
+- ✅ Automated Regression Testing
 
 ### Current Sprint Focus
 
