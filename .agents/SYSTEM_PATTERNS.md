@@ -33,6 +33,7 @@ This document stores the "collective memory" of the AI agents working on this re
 ### Supabase Edge Functions (Deno Runtime)
 - **Issue**: Edge Functions use Deno runtime, not Node.js. Cannot directly import Edge Function code in Node.js tests.
 - **Fix**: Either use Deno CLI for local testing (`deno test`) or duplicate parser logic in test harness with warning comment about keeping in sync.
+- **Pattern**: **Edge Function Logic Isolation**. Extract complex logic (like `detectAnomalies`) into pure functions within the handler file so they can be unit-tested or copied to test harnesses easily.
 - **Context**: Discovered during receipt parser testing (2026-02-07).
 
 ### Swedish Receipt Parsing Patterns
@@ -68,7 +69,7 @@ This document stores the "collective memory" of the AI agents working on this re
 - **Issue**: Regex `/[,.](\d+)[,.](\d+)$/` can capture merged digits across price/quantity fields (e.g., `,052,00` → qty=52 instead of 2).
 - **Fix**: Added unit price sanity check. If `qty > 1` but `unitPrice < 1 kr`, fallback to `qty=1`.
 - **Pattern**: Swedish receipts often have format: `ITEM_NAME,quantity,unit_price`. Regex must not cross field boundaries.
-- **Long-term**: Implement Parser Anomaly Detection System (see `docs/parser-anomaly-detection-system.md`).
+- **Long-term**: Implement Parser Anomaly Detection System (Implemented 2026-02-08).
 - **Context**: ICA Kvantum "Sunny Soda Nocco2F38" bug (PR #34).
 
 *(Add entries here after `/system-review`)*

@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap, Download } from "lucide-react";
+import { Upload, FileText, Loader2, CheckCircle2, XCircle, ChevronRight, Package, Trash2, Zap, Download, AlertTriangle } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
 import { ComparisonView } from "./ComparisonView";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Types from ParsingTrainer
 interface ParsedItem {
@@ -25,9 +25,19 @@ interface ItemDiff {
     matchType: 'exact' | 'name_match' | 'fuzzy' | 'price_match' | 'unmatched_structured' | 'unmatched_ai';
     differences: {
         field: 'name' | 'price' | 'quantity' | 'category' | 'discount';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         structured: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ai: any;
     }[];
+}
+
+interface Anomaly {
+    type: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    item?: any;
 }
 
 interface ComparisonResult {
@@ -69,6 +79,7 @@ interface BulkTestResult {
     matchRate: number;
     timing: number;
     errorMessage?: string;
+    anomalies?: Anomaly[];
 }
 
 interface FileToProcess {
@@ -247,6 +258,10 @@ export function BulkTester() {
                 const comparison = data as ComparisonResult;
                 const matchRate = comparison.diff.matchRate;
                 const passed = matchRate === 100;
+                
+                // Extract anomalies from parser_metadata if present
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const anomalies = (data as any).parser_metadata?.anomalies as Anomaly[] || [];
 
                 return {
                     filename: file.name,
@@ -254,6 +269,7 @@ export function BulkTester() {
                     comparison,
                     matchRate,
                     timing: endTime - startTime,
+                    anomalies
                 };
             }
 
@@ -262,6 +278,10 @@ export function BulkTester() {
                 const itemsCount = data.structured_items_count || data.items?.length || 0;
                 // In structured-only mode, pass is based on finding items (not comparison)
                 const passed = itemsCount > 0;
+                
+                // Extract anomalies
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const anomalies = (data as any).parser_metadata?.anomalies as Anomaly[] || [];
 
                 return {
                     filename: file.name,
@@ -270,10 +290,12 @@ export function BulkTester() {
                     matchRate: passed ? 100 : 0, // Binary: either parsed or not
                     timing: endTime - startTime,
                     errorMessage: !passed ? `Structured parser found ${itemsCount} items` : undefined,
+                    anomalies
                 };
             }
 
             throw new Error(`Unexpected response format. Got: ${JSON.stringify(data ? Object.keys(data) : 'null')}`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             return {
                 filename: file.name,
@@ -378,6 +400,17 @@ export function BulkTester() {
             // Comparison data (if available)
             if (result.comparison) {
                 const comp = result.comparison;
+
+                // Anomalies Section
+                if (result.anomalies && result.anomalies.length > 0) {
+                    content += `### ⚠️ Anomalies\n\n`;
+                    content += `| Type | Severity | Description |\n`;
+                    content += `|------|----------|-------------|\n`;
+                    result.anomalies.forEach((a) => {
+                        content += `| ${a.type} | ${a.severity} | ${a.description} |\n`;
+                    });
+                    content += `\n`;
+                }
 
                 // Structured parser results
                 if (comp.structured) {
@@ -669,6 +702,28 @@ export function BulkTester() {
                                         <div className="flex items-center gap-4">
                                             {result.status !== 'pending' && result.status !== 'processing' && (
                                                 <>
+                                                    {result.anomalies && result.anomalies.length > 0 && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <div className="flex items-center gap-1 text-orange-500">
+                                                                        <AlertTriangle className="h-4 w-4" />
+                                                                        <span className="text-sm font-bold">{result.anomalies.length}</span>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <div className="text-xs">
+                                                                        <p className="font-semibold mb-1">Avvikelser:</p>
+                                                                        <ul className="list-disc pl-3">
+                                                                            {result.anomalies.map((a, i) => (
+                                                                                <li key={i}>{a.type}: {a.description.substring(0, 30)}...</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
                                                     <Badge variant={result.matchRate === 100 ? 'default' : 'destructive'}>
                                                         {result.matchRate}%
                                                     </Badge>
