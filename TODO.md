@@ -51,12 +51,10 @@
 
 ## Known Bugs 🐛
 
-- [ ] **Perceptual hash collision causes false duplicate detection** 🔥 NEW
-  - **Symptom:** Upload blocked with "Duplikat upptäckt" for a different receipt
-  - **Root cause:** Two visually similar receipts produce the same perceptual hash
-  - **Example:** `ICA Nära Älvsjö 2025-09-29` collided with `ICA Nära Älvsjö 2026-02-01`
-  - **Workaround:** Delete the colliding hash manually via Supabase SQL Editor
-  - **📋 Fix Plan:** [`docs/HASH_COLLISION_FIX_PLAN.md`](docs/HASH_COLLISION_FIX_PLAN.md)
+- [x] **Perceptual hash collision causes false duplicate detection** ✅ FIXED (2026-02-08)
+  - **Fix:** Added `receipt_date` to `receipt_image_hashes` table and updated unique constraint.
+  - **Logic:** Allows same visual hash if dates are different (extracted from filename).
+  - **Docs:** `docs/HASH_COLLISION_FIX_PLAN.md` (Option A implemented).
 
 - [ ] **Receipt images on old storage**
   - Images still point to old Lovable Storage URLs

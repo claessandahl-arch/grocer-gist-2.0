@@ -162,6 +162,15 @@ const Upload = () => {
     }
   };
 
+  // Extract date from filename (YYYY-MM-DD)
+  const extractDateFromFilename = (filename: string): string | null => {
+    const dateMatch = filename.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      return `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    }
+    return null;
+  };
+
   const handleUpload = async () => {
     if (previewFiles.length === 0) return;
 
@@ -198,18 +207,25 @@ const Upload = () => {
           // PHASE 1: Check for duplicate via image hash BEFORE any expensive operations
           logger.debug(`Starting duplicate check for ${baseFilename}...`);
           const blobs = sortedFiles.map(f => f.blob);
+          const fileDate = extractDateFromFilename(baseFilename);
           let receiptHash: string = '';
           try {
             const pageHashes = await generateImageHashes(blobs);
             receiptHash = combineHashes(pageHashes);
-            logger.debug(`Generated hash for ${baseFilename}: ${receiptHash}`);
+            logger.debug(`Generated hash for ${baseFilename}: ${receiptHash} (Date: ${fileDate || 'unknown'})`);
 
             // Check if this hash already exists for this user
+            // Option A: Include date in the lookup to prevent false positive layout collisions
+            const matchCriteria: Record<string, any> = {
+              user_id: userId,
+              image_hash: receiptHash,
+              receipt_date: fileDate
+            };
+
             const { data: existingHash, error: hashLookupError } = await supabase
               .from('receipt_image_hashes')
               .select('id')
-              .eq('user_id', userId)
-              .eq('image_hash', receiptHash)
+              .match(matchCriteria)
               .maybeSingle();
 
             if (hashLookupError) {
@@ -218,16 +234,16 @@ const Upload = () => {
 
             if (existingHash) {
               duplicateCount++;
-              logger.debug(`Duplicate hash found for ${baseFilename}, skipping`);
-              toast.warning(`Duplikat upptäckt: ${baseFilename} (samma bild har redan laddats upp)`);
+              logger.debug(`Duplicate hash found for ${baseFilename}${fileDate ? ` on ${fileDate}` : ''}, skipping`);
+              toast.warning(`Duplikat upptäckt: ${baseFilename} (samma kvitto har redan laddats upp)`);
               return;
             }
 
             // Save hash IMMEDIATELY after confirming it's not a duplicate
-            // This ensures the hash is saved even if old duplicate check triggers later
             const { error: hashInsertError } = await supabase.from('receipt_image_hashes').insert({
               user_id: userId,
-              image_hash: receiptHash
+              image_hash: receiptHash,
+              receipt_date: fileDate
             });
 
             if (hashInsertError) {
