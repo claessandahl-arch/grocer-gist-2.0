@@ -370,7 +370,8 @@ const Upload = () => {
             store_name: parsedData.store_name,
             total_amount: parsedData.total_amount,
             receipt_date: parsedData.receipt_date,
-            items: parsedData.items
+            items: parsedData.items,
+            parser_metadata: parsedData.parser_metadata || null
           }).select('id').single();
 
           if (insertError) {

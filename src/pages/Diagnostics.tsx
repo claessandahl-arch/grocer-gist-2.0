@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Activity, Trash2, AlertTriangle, CheckCircle, Sparkles, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { ParserHealthDashboard } from "@/components/admin/ParserHealthDashboard";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -252,6 +253,22 @@ export default function Diagnostics() {
                 </div>
 
                 <div className="grid gap-6">
+                    {/* Parser Health Dashboard */}
+                    <Card className="border-blue-200 bg-blue-50/30">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Activity className="h-5 w-5 text-blue-500" />
+                                Parser Health
+                            </CardTitle>
+                            <CardDescription>
+                                Monitorering av kvittotolkningens precision och fel.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ParserHealthDashboard />
+                        </CardContent>
+                    </Card>
+
                     {/* Cleanup Tool Card */}
                     <Card>
                         <CardHeader>
