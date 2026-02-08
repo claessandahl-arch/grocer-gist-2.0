@@ -658,15 +658,43 @@ function parseICAKvantumText(text: string, debugLog: string[]): { items: ParsedI
         // Try to extract quantity from the garbage before unit
         // For st: ",951,00" means qty=1, ",952,00" means qty=2
         // For kg: ",002,91" means qty=2.91 kg
-        // BUG FIX: Handle merged price+quantity like ",052,00" where "052" -> 52 (wrong!)
-        // NOTE: This fix prevents absurd prices but may fallback to qty=1 (not perfect qty)
+        // BUG FIX (st): Handle merged price+quantity like ",052,00" where "052" -> 52 (wrong!)
+        // BUG FIX (kg): ICA Nära has short article numbers (2-4 digits) causing merged text
+        //   e.g. "Peppar Röd4697169,950,01" → regex grabs ",950,01" → groups "950","01"
+        //   The "950" contains price öre (95) + qty integer (0). Swedish prices always have
+        //   2 öre digits, so we split: first 2 chars = öre, rest = qty integer → qty = 0.01
+        //   Fix: sanity check kg qty (max 10), fallback to öre-split recovery
         // Future enhancement: Parse multi-buy codes (e.g., "2F38") to infer correct quantity
         let quantity = 1; // default
         const qtyMatch = rawContent.match(/[,.](\d+)[,.](\d+)$/);
         if (qtyMatch) {
           if (unit === 'kg') {
             // For kg, quantity is like 2,91 -> 2.91
-            quantity = parseFloat(`${qtyMatch[1]}.${qtyMatch[2]}`);
+            const rawKgQty = parseFloat(`${qtyMatch[1]}.${qtyMatch[2]}`);
+
+            if (rawKgQty <= 10) {
+              // Normal kg quantity (no grocery item weighs > 10 kg)
+              quantity = rawKgQty;
+            } else {
+              // Absurd weight — likely merged digits from short article numbers (ICA Nära)
+              // e.g. "Peppar Röd4697169,950,01" → regex grabs ",950,01" → groups "950","01"
+              // Structure: [name][articleNum][priceInt],[priceÖre(2)][qtyInt],[qtyDec]
+              // Swedish prices always have 2 öre digits, so first 2 chars of qtyMatch[1]
+              // are price öre and the rest is the real quantity integer
+              if (qtyMatch[1].length > 2) {
+                const qtyInteger = qtyMatch[1].substring(2); // skip 2 price öre digits
+                const qtyDecimal = qtyMatch[2];
+                const correctedQty = parseFloat(`${qtyInteger}.${qtyDecimal}`);
+                if (correctedQty > 0 && correctedQty <= 10) {
+                  quantity = correctedQty;
+                  debugLog.push(`    ⚠️ Kg sanity fix: raw ${rawKgQty} kg → split merged öre digits → ${quantity} kg`);
+                } else {
+                  debugLog.push(`    ⚠️ Kg sanity fail: raw ${rawKgQty} kg, split gave ${correctedQty} kg - using qty=1`);
+                }
+              } else {
+                debugLog.push(`    ⚠️ Kg sanity fail: raw ${rawKgQty} kg absurd, merged group too short to split - using qty=1`);
+              }
+            }
           } else {
             // For st, quantity is just the integer before the decimals
             const extractedQty = parseInt(qtyMatch[1]);
