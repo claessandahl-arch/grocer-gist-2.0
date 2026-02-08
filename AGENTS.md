@@ -89,6 +89,31 @@ Before submitting a PR:
 3. [ ] **Database**: If using RPCs, verify PostgREST compatibility (no default params).
 4. [ ] **Secrets**: Ensure no secrets are committed.
 
+### Parser Testing Strategy
+
+When working on the receipt parser (`supabase/functions/parse-receipt/index.ts`):
+
+#### Environment Tiers
+1. **Unit Tests** (`scripts/test-*.ts`): No Supabase connection required
+2. **Build Validation** (`npm run build`): No Supabase connection required  
+3. **Regression Tests** (`npm run test:regression`): Requires `SUPABASE_SERVICE_ROLE_KEY`
+4. **Manual Verification**: Requires deployed Edge Function + dev server
+
+#### Fallback Pattern
+When regression tests are blocked by environment issues:
+1. Run targeted unit tests for fast feedback
+2. Validate with `npm run build` + `npm run lint`
+3. Deploy to production and verify manually
+4. Document blocker in execution report
+5. Add issue to backlog for environment/test data fixes
+
+#### Golden Set Requirements
+Test receipts in `test-receipts/golden-set/` must meet these criteria:
+- All PDFs must have complete metadata in `golden-set-index.json` (`items_count`, `total_amount`)
+- Filenames must be URL-safe (no special characters like ö, ä, å)
+- Use sanitized filenames or proper URL encoding for storage keys
+- When adding new receipts, verify metadata completeness before committing
+
 ## 3. Development Commands
 
 | Task | Command | Description |
