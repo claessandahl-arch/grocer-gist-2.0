@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Activity, Trash2, AlertTriangle, CheckCircle, Sparkles, Clock } from "lucide-react";
+import { ArrowLeft, Activity, Trash2, AlertTriangle, CheckCircle, Sparkles, Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { ParserHealthDashboard } from "@/components/admin/ParserHealthDashboard";
@@ -286,6 +286,38 @@ export default function Diagnostics() {
                 </div>
 
                 <div className="grid gap-6">
+                    {/* Regression Testing Instructions */}
+                    <Card className="border-green-200 bg-green-50/30">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <ShieldCheck className="h-5 w-5 text-green-600" />
+                                Regressionstestning
+                            </CardTitle>
+                            <CardDescription>
+                                Instruktioner för att säkerställa parserns kvalitet över tid.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="text-sm space-y-2">
+                                <p>
+                                    För att förhindra att nya uppdateringar förstör fungerande tolkningar används ett <strong>Golden Set</strong> av kvitton.
+                                </p>
+                                <div className="bg-white/50 p-3 rounded border border-green-100">
+                                    <h4 className="font-semibold mb-1">Så här lägger du till ett testkvitto:</h4>
+                                    <ol className="list-decimal ml-4 space-y-1">
+                                        <li>Ladda upp kvitto-PDF till <code>test-receipts/golden-set/</code></li>
+                                        <li>Registrera förväntat resultat i <code>golden-set-index.json</code> (antal artiklar & totalsumma)</li>
+                                        <li>Kör <code>npm run test:regression</code> lokalt för att verifiera</li>
+                                        <li>Pusha ändringarna för att aktivera automatisk nattlig kontroll i GitHub Actions</li>
+                                    </ol>
+                                </div>
+                                <p className="text-xs text-muted-foreground italic">
+                                    Se fullständig dokumentation i <code>docs/REGRESSION_TESTING.md</code> för tekniska detaljer.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Parser Health Dashboard */}
                     <Card className="border-blue-200 bg-blue-50/30">
                         <CardHeader>
