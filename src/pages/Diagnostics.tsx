@@ -326,7 +326,10 @@ export default function Diagnostics() {
                                 Parser Health
                             </CardTitle>
                             <CardDescription>
-                                Monitorering av kvittotolkningens precision och fel.
+                                Monitorering av kvittotolkningens precision och fel. 
+                                <span className="block mt-1 font-semibold text-blue-600">
+                                    💡 Klicka på en avvikelse nedan för att korrigera kvittot i träningsläget.
+                                </span>
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

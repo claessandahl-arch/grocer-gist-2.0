@@ -2,10 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, AlertTriangle, CheckCircle, Clock, Zap } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle, Clock, Zap, ExternalLink } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useNavigate } from "react-router-dom";
 
 interface Anomaly {
+  receipt_id: string;
   anomaly_type: string;
   description: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
@@ -33,6 +35,7 @@ interface AnomalyTypeStats {
 }
 
 export function ParserHealthDashboard() {
+  const navigate = useNavigate();
   const { data: healthMetrics } = useQuery({
     queryKey: ['parser-health-metrics'],
     queryFn: async () => {
@@ -152,19 +155,30 @@ export function ParserHealthDashboard() {
                 Inga avvikelser upptäckta
               </div>
             ) : (
-              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                 {recentAnomalies?.map((anomaly, idx) => (
-                  <div key={idx} className="flex flex-col space-y-1 border-b pb-2 last:border-0">
+                  <div 
+                    key={idx} 
+                    className="flex flex-col space-y-1 border-b pb-3 last:border-0 hover:bg-muted/30 cursor-pointer transition-colors p-2 rounded-md group"
+                    onClick={() => navigate(`/training?receiptId=${anomaly.receipt_id}`)}
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{anomaly.anomaly_type}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm group-hover:text-primary transition-colors">
+                          {anomaly.anomaly_type}
+                        </span>
+                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+                      </div>
                       {getSeverityBadge(anomaly.severity)}
                     </div>
-                    <p className="text-xs text-muted-foreground">{anomaly.description}</p>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                      <span>{anomaly.store_name}</span>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {anomaly.description}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+                      <span className="font-medium text-foreground/70">{anomaly.store_name}</span>
                       <span className="flex items-center">
                         <Clock className="h-3 w-3 mr-1" />
-                        {new Date(anomaly.created_at).toLocaleDateString()}
+                        {new Date(anomaly.created_at).toLocaleDateString('sv-SE')}
                       </span>
                     </div>
                   </div>
