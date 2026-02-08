@@ -10,7 +10,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // Check Deno logs for the actual error before removing this.
 //
 // Removing this breaks PDF text extraction and drops parsing accuracy
-// from 100% to ~80%. See CLAUDE.md lines 24-53 for full explanation.
+// from 100% to ~80%. See docs/references/ARCHITECTURE.md for full explanation.
 //
 // This has been removed incorrectly TWICE already. DO NOT REMOVE IT AGAIN.
 // ============================================================================
@@ -83,17 +83,17 @@ interface ParserMetadata {
 
 function detectAnomalies(items: ParsedItem[], totalAmount?: number): Anomaly[] {
   const anomalies: Anomaly[] = [];
-  
+
   // 1. Check for absurd unit prices (e.g., < 0.50 kr for non-pant items)
   // This often happens when quantity is wrongly parsed as 52 instead of 2
   items.forEach(item => {
     if (item.category === 'pant') return;
-    
+
     // Skip if quantity is 0 to avoid division by zero
     if (item.quantity === 0) return;
-    
+
     const unitPrice = item.price / item.quantity;
-    
+
     // Threshold: < 0.50 kr/st (unless it's weight-based like kg)
     // For kg, 0.50 kr/kg is also absurdly low for groceries
     if (item.quantity > 1 && unitPrice < 0.50 && item.price > 0) {
@@ -104,21 +104,21 @@ function detectAnomalies(items: ParsedItem[], totalAmount?: number): Anomaly[] {
         item
       });
     }
-    
+
     // 2. High quantity check
     // > 50 items/kg/liters is suspicious for a normal grocery receipt
     if (item.quantity > 50 && item.quantity_unit !== 'g' && item.quantity_unit !== 'ml') {
-       anomalies.push({
+      anomalies.push({
         type: 'high_quantity',
         description: `Unusually high quantity (${item.quantity} ${item.quantity_unit}) for ${item.name}`,
         severity: 'medium',
         item
       });
     }
-    
+
     // 3. Zero price check (non-pant, non-discount)
     if (item.price === 0 && item.category !== 'pant' && !item.name.toLowerCase().includes('rabatt')) {
-       anomalies.push({
+      anomalies.push({
         type: 'zero_price',
         description: `Item with 0 price: ${item.name}`,
         severity: 'low', // Might be a free gift or error
@@ -131,10 +131,10 @@ function detectAnomalies(items: ParsedItem[], totalAmount?: number): Anomaly[] {
   if (totalAmount !== undefined && totalAmount > 0) {
     const itemSum = items.reduce((sum, item) => sum + item.price, 0);
     const diff = Math.abs(totalAmount - itemSum);
-    
+
     // Allow small rounding diffs (Swedish rounding can be up to 0.50 kr, plus some buffer)
-    if (diff > 1.5) { 
-       anomalies.push({
+    if (diff > 1.5) {
+      anomalies.push({
         type: 'math_mismatch',
         description: `Total amount (${totalAmount}) differs from sum of items (${itemSum.toFixed(2)}) by ${diff.toFixed(2)}`,
         severity: 'medium'
@@ -147,15 +147,15 @@ function detectAnomalies(items: ParsedItem[], totalAmount?: number): Anomaly[] {
 
 function getDebugLogSummary(logs: string[]): string {
   if (!logs || logs.length === 0) return '';
-  
+
   // Take first 10 and last 20 lines, plus any error/warning lines in between
   const importantLogs = logs.filter(l => l.includes('❌') || l.includes('⚠️') || l.includes('Warning') || l.includes('CRITICAL'));
   const start = logs.slice(0, 10);
   const end = logs.slice(-20);
-  
+
   // Deduplicate using Set
   const combined = [...new Set([...start, ...importantLogs, ...end])];
-  
+
   // Sort by original index if we want strictly chronological, but simple join is likely fine for summary
   return combined.join('\n');
 }

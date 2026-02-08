@@ -56,7 +56,7 @@ flowchart TB
     subgraph COMPLETE["🎉 COMPLETE"]
         commit["/commit"]
         system["/system-review<br/>Analyze & Archive"]
-        memory["📝 Update SYSTEM_PATTERNS.md"]
+        memory["📝 Update docs/references/"]
         archive["📦 Move to .agents/archive/"]
         
         validate -->|Pass| commit
@@ -83,8 +83,8 @@ flowchart TB
 │  • Beginning a new development session                          │
 │                                                                 │
 │  ACTIONS:                                                       │
-│  1. Read CLAUDE.md (or AGENTS.md)                               │
-│  2. Read .agents/SYSTEM_PATTERNS.md (Critical!)                 │
+│  1. Read AGENTS.md                                              │
+│  2. Read docs/references/TROUBLESHOOTING.md (Critical!)         │
 │  3. Verify .agent/workflows/ symlinks (Essential!)              │
 │     (Must point to .opencode/commands/*.md)                     │
 │  4. Check .agents/active/ for ongoing work                      │
@@ -214,7 +214,7 @@ flowchart TB
 │                                                                 │
 │  ACTIONS:                                                       │
 │  1. Analyzes process (Plan vs Execution)                        │
-│  2. Updates .agents/SYSTEM_PATTERNS.md with new learnings       │
+│  2. Updates docs/references/*.md with new learnings             │
 │  3. Creates .agents/active/[name]/system-review.md              │
 │  4. Moves folder:                                               │
 │     mv .agents/active/[name] .agents/archive/[name]             │
@@ -233,7 +233,7 @@ flowchart TB
 │   ├── opencode.json        # Config
 │   └── reference/           # Project docs
 .agents/                     # [MEMORY] Agent Memory
-├── SYSTEM_PATTERNS.md       # Long-term shared memory
+
 ├── active/                  # Features currently in progress
 └── archive/                 # Completed features (Reference only)
 ```
@@ -295,5 +295,5 @@ The AI assistant automatically uses Sequential Thinking when encountering:
 ## 🎯 Best Practices
 
 1.  **Feature Isolation**: Keep all files for a feature in its specific folder in `active/`.
-2.  **Memory First**: Always check `SYSTEM_PATTERNS.md` before solving a "new" bug.
+2.  **Memory First**: Always check `docs/references/TROUBLESHOOTING.md` before solving a "new" bug.
 3.  **Archive Aggressively**: Once a feature is deployed and working, run `/system-review` to move it to archive. Keep `active/` clean.

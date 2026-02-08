@@ -560,3 +560,23 @@ const options = categoryOptions; // [{ value, label }, ...]
 
 > **Note**: Some receipt images may still point to old Lovable storage URLs until migrated.
 
+
+## Hosting & Infrastructure
+
+- **Frontend Hosting**: Vercel (`grocer-gist-2-0.vercel.app`)
+  - Auto-deploy: Enabled from `main`
+  - Build Command: `npm run build`
+  - Output Directory: `dist`
+- **Database**: Self-hosted Supabase
+- **Edge Functions**: Supabase Edge Functions (Deno runtime)
+  - Deployment: `supabase functions deploy [function-name]`
+- **AI**: Google Gemini API (`gemini-2.5-flash`)
+
+## Context7 Integration (AI Tools)
+This project uses **Context7** MCP server to fetch up-to-date documentation.
+**Key library IDs verified:**
+- Supabase: `/supabase/supabase-js`
+- TanStack Query: `/websites/tanstack_query`
+- React Router: `/remix-run/react-router`
+- React Hook Form: `/react-hook-form/react-hook-form`
+- Zod: `/colinhacks/zod`

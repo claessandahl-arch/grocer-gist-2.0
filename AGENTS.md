@@ -15,13 +15,27 @@ This document is the primary source of truth for AI agents (Opencode, Cursor, Co
 
 ## 2. Operational Rules & Workflow
 
-### Git Safety (CRITICAL)
+### Git & Development Workflow
 1. **Never commit directly to `main`**. Always create a feature branch (`feat/`, `fix/`, `chore/`).
 2. **Pull Requests required**. Create the PR and STOP. Do not auto-merge.
 3. **No Force Pushes**. Avoid `git push -f`.
 4. **Sync often**. Run `git pull` before starting work.
 5. **Verify before push**. Always run `npm run build` locally to ensure type safety.
 6. **Regression Testing**: Whenever a parser bug is fixed, a corresponding test case **MUST** be added to the Golden Set (`test-receipts/golden-set/`).
+7. **Parser Quality Control**:
+   - **Regression Testing**: `npm run test:regression`
+   - **Diagnostics**: `/diagnostics` page for monitoring parser health.
+   - **Anomaly Detection**: Use parsed receipt flags (e.g. `absurd_unit_price`).
+
+### Database & Migrations
+- **Access**: Use Supabase Dashboard or CLI.
+- **Migrations**:
+  - Push: `supabase db push`
+  - Reset: `supabase db reset`
+  - New: `supabase migration new <name>`
+- **Edge Functions**:
+  - Deploy: `supabase functions deploy <name>`
+  - Logs: Check Supabase Dashboard.
 
 ### Development Workflow (PIV)
 Follow the **Plan → Implement → Validate** loop:
@@ -65,7 +79,7 @@ An agent session for a feature is NOT complete until the `/system-review` is wri
 ### Infrastructure Dependencies
 If a feature requires external configuration (Supabase Dashboard, Vercel, etc.):
 1. **Explicit Phase:** The Plan MUST include a "Configuration Phase" detailing these steps.
-2. **Documentation:** Create a reference doc in `.opencode/reference/` if the steps are complex.
+2. **Documentation:** Create a reference doc in `docs/references/` if the steps are complex.
 3. **Validation:** Explicitly state if the feature is "broken until configured" in the Execution Report.
 
 ### Verification Checklist
@@ -133,6 +147,10 @@ Before submitting a PR:
     - Set `search_path = public, auth` if using `auth.uid()`.
     - Use CTEs instead of nesting set-returning functions in aggregates.
 - **TanStack Query**: Use `staleTime: 0` for volatile data, `staleTime: 5 mins` for stable data.
+- **Date Handling**: Always use `date-fns`. Note: Swedish locale (`sv`) is standard.
+- **Error Handling**: 
+    - Supabase errors often return 200 OK with `error` object. Always check `.error`.
+    - Use `sonner` or `toast` for user-visible errors.
 
 ## 5. Agent Protocol
 

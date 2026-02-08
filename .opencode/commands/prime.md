@@ -19,8 +19,8 @@ find . -maxdepth 3 -type d -not -path '*/node_modules/*' -not -path '*/.git/*' |
 3. Read Core Documentation
 - AGENTS.md (root context)
 - README.md
-- .opencode/reference/TECH_STACK.md (architecture details)
-- .opencode/PRD.md (Product Requirements)
+- docs/TECH_STACK.md (architecture details)
+- docs/PRD.md (Product Requirements)
 
 4. Identify Key Files
 - `src/App.tsx` (or main entry point)

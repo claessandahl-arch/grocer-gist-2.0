@@ -165,7 +165,7 @@ grocer-gist-2.0/
 │   └── migrations/         # 45+ database migrations
 │
 ├── docs/                   # Feature dokumentation
-├── CLAUDE.md               # Utvecklingsguide
+├── AGENTS.md               # Agent guidelines
 ├── TODO.md                 # Roadmap och uppgiftslista
 └── PRD.md                  # Detta dokument
 ```
@@ -577,7 +577,7 @@ CREATE TABLE global_product_mappings (
 
 ### Key Documentation
 
-- [CLAUDE.md](./CLAUDE.md) — Utvecklingsguide och teknisk referens
+- [AGENTS.md](./AGENTS.md) — Agent guidelines and technical reference
 - [TODO.md](./TODO.md) — Roadmap och uppgiftslista
 - [docs/PRICE_COMPARISON.md](./docs/PRICE_COMPARISON.md) — Price Comparison feature
 - [docs/PRICE_COMPARISON_ENHANCEMENT.md](./docs/PRICE_COMPARISON_ENHANCEMENT.md) — Unit normalization

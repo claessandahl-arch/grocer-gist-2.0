@@ -95,7 +95,8 @@ Edge Functions require `GEMINI_API_KEY` to be set as a secret.
 
 ## Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Detailed project documentation and guidelines
+- [AGENTS.md](./AGENTS.md) - Detailed project documentation and agent guidelines
+- [docs/](docs/) - Architecture, feature documentation, and technical stack
 - [TODO.md](./TODO.md) - Roadmap and planned features
 
 ## License

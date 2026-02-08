@@ -56,6 +56,12 @@
   - **Logic:** Allows same visual hash if dates are different (extracted from filename).
   - **Docs:** `docs/HASH_COLLISION_FIX_PLAN.md` (Option A implemented).
 
+- [ ] **Orphan hashes block re-upload after receipt deletion**
+  - **Symptom:** Deleting a receipt then re-uploading the same PDF shows "Duplikat upptäckt"
+  - **Root cause:** Hash rows with `receipt_id = NULL` (orphans from failed uploads) are not cleaned up by `ON DELETE CASCADE` since there's no `receipt_id` to cascade from. Also, deletion in Training.tsx relies solely on CASCADE — no explicit hash cleanup.
+  - **Workaround:** Run in Supabase SQL Editor: `DELETE FROM receipt_image_hashes WHERE receipt_id IS NULL;`
+  - **Proper fix:** Add explicit hash deletion in Training.tsx delete handlers (both single and bulk) before deleting the receipt, and add a cleanup sweep for orphan hashes on upload.
+
 - [ ] **Receipt images on old storage**
   - Images still point to old Lovable Storage URLs
   - Will work until that bucket is deleted
