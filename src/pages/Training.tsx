@@ -38,8 +38,12 @@ interface Receipt {
   image_url: string;
 }
 
+import { useSearchParams } from "react-router-dom";
+
 export default function Training() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const targetReceiptId = searchParams.get("receiptId");
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [editedData, setEditedData] = useState<ParsedReceiptData | null>(null);
@@ -85,6 +89,16 @@ export default function Training() {
     fetchReceipts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-select receipt if receiptId is in URL
+  useEffect(() => {
+    if (targetReceiptId && receipts.length > 0 && !selectedReceipt) {
+      const target = receipts.find(r => r.id === targetReceiptId);
+      if (target) {
+        handleSelectReceipt(target);
+      }
+    }
+  }, [targetReceiptId, receipts, selectedReceipt]);
 
   const handleSelectReceipt = (receipt: Receipt) => {
     setSelectedReceipt(receipt);
